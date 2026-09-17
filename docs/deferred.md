@@ -242,23 +242,17 @@ decorator's arguments, which is where it should be caught. Worth doing when
 the decorator's argument validation is revisited.
 
 
-## 12. `format` cannot be used to convert a document
+## 12. `format` cannot be used to convert a document --- RESOLVED
 
-*Raised in phase 7. Specification sections 4.1 and 46.*
+*Raised in phase 7; resolved in phase 8.*
 
 The decorator's `format` argument says what the decorated docstring is
-*written in*, per section 4.1, and section 46 renders the composed document
-back into that same format. The two uses coincide, so `format` cannot be
-asked to write a NumPy docstring out as Google style: giving
-`format='google'` for a NumPy-style docstring is a conformance error, and is
-reported as one.
+*written in*, per specification section 4.1, and rendering originally used
+that same format, so a document could not be asked to convert.
 
-Converting between formats does work where it is genuinely useful, which is
-between a source and its target: the document model is format-independent, so
-a Google-style function may inherit from a NumPy-style one and is written in
-its own style either way.
-
-A deliberate conversion would need a second argument, such as
-`render='google'`, separating the format a document is read as from the
-format it is written in. Nothing in the specification calls for one, and
-version 0.1 does not offer it.
+Resolved by adding a `render` argument that says what format the composed
+documentation is written in, defaulting to `format`, or to the detected
+format when `format` was not given. `format` therefore keeps its
+specification meaning, `render='numpy'` alone says how to write an object
+that has no docstring to detect a format from, and giving both converts a
+document from one format into the other.

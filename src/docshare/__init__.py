@@ -27,7 +27,7 @@ from ._exceptions import (
 from ._model import Document, FrozenDict, Item, Section
 from ._sections import SUPPORTED_FORMATS, SectionKind, section_kind
 
-__version__ = '0.1.0.dev0'
+__version__ = '0.1.0'
 
 __all__ = (
     'SUPPORTED_FORMATS',

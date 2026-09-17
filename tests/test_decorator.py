@@ -622,11 +622,11 @@ def test_an_incoherent_inheritance_fails_at_decoration_time():
 # Formats ####################################################################
 
 
-def test_an_undocumented_target_requires_an_explicit_format():
+def test_an_undocumented_target_requires_a_format_to_write_in():
     def f(foo, bar=1):
         pass
 
-    with pytest.raises(DocFormatError, match='no format is known'):
+    with pytest.raises(DocFormatError, match='render='):
         docshare(f, inheritparams=source)
 
 
@@ -657,10 +657,9 @@ def test_the_format_is_detected_from_the_targets_own_docstring():
     assert 'foo (float): The foo from google.' in f.__doc__
 
 
-def test_the_format_argument_does_not_convert_a_document():
+def test_the_format_argument_still_asserts_how_the_docstring_is_written():
     # format= says what the docstring is written in, per specification
-    # section 4.1, and the output is written in that same format. It is not
-    # a conversion request; see docs/deferred.md.
+    # section 4.1; it is render= that says how to write the result.
     def f(foo, bar=1):
         """F.
 
@@ -672,6 +671,66 @@ def test_the_format_argument_does_not_convert_a_document():
 
     with pytest.raises(DocFormatError, match='required to be'):
         docshare(f, format='google', inheritparams=source)
+
+
+def test_render_converts_a_document_into_the_other_format():
+    def f(foo, bar=1):
+        """F.
+
+        Parameters
+        ----------
+        bar : float
+            My own bar.
+        """
+
+    docshare(f, format='numpy', render='google', inheritparams=source)
+    assert 'Args:' in f.__doc__
+    assert 'foo (float): The foo parameter.' in f.__doc__
+    assert 'Parameters\n----------' not in f.__doc__
+
+
+def test_render_alone_writes_an_undocumented_target():
+    # There is no docstring to detect a format from, so render= alone says
+    # how to write one.
+    def f(foo, bar=1):
+        pass
+
+    docshare(f, render='numpy', inheritparams=source)
+    assert f.__doc__.startswith('Parameters\n----------')
+
+
+def test_render_defaults_to_the_detected_format():
+    def f(foo, bar=1):
+        """F.
+
+        Args:
+            bar (float): My own bar.
+        """
+
+    docshare(f, inheritparams=source)
+    assert 'Args:' in f.__doc__
+
+
+def test_render_defaults_to_an_explicit_format():
+    def f(foo, bar=1):
+        """F.
+
+        Parameters
+        ----------
+        bar : float
+            My own bar.
+        """
+
+    docshare(f, format='numpy', inheritparams=source)
+    assert 'Parameters\n----------' in f.__doc__
+
+
+def test_render_is_rejected_when_unsupported():
+    def f(foo, bar=1):
+        """F."""
+
+    with pytest.raises(DocFormatError, match='unsupported'):
+        docshare(f, render='rest', inheritparams=source)
 
 
 def test_a_google_target_may_inherit_from_a_numpy_source():

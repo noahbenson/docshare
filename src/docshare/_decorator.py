@@ -77,6 +77,7 @@ SECTION_ARGUMENTS = _build_arguments()
 #: The arguments accepted in addition to the per-section ones.
 GENERAL_ARGUMENTS = (
     'format',
+    'render',
     'inherit',
     'inheritall',
     'inheritother',
@@ -258,6 +259,7 @@ def _apply(obj, options):
         if name not in GENERAL_ARGUMENTS and name not in SECTION_ARGUMENTS:
             _unknown_argument(name)
     format = options.get('format')
+    render = options.get('render', format)
     extraparam = options.get('extraparam')
     doc = docparse(obj, format=format)
     validate_signature(
@@ -272,7 +274,7 @@ def _apply(obj, options):
         set_docinfo(obj, doc)
         return obj
     composed = compose(obj, doc, operations, extraparam=extraparam)
-    _assign(obj, render_document(composed, format=format))
+    _assign(obj, render_document(composed, format=render))
     set_docinfo(obj, composed)
     return obj
 
@@ -292,10 +294,16 @@ def docshare(obj=None, /, **options):
         decorator is used bare, and may be given directly to compose an
         object's documentation outside a decorator expression.
     format : str, optional
-        The documentation format. The default detects it from the object's
-        own docstring, which is not possible when the object has none, so an
-        object documented entirely by inheritance must say which format to
-        write.
+        The format the object's own docstring is written in. The default
+        detects it, which is not possible for an object that has no
+        docstring of its own.
+    render : str, optional
+        The format the composed documentation is written in. The default is
+        `format`, or the detected format when `format` was not given, so
+        that a docstring is normally written back in the style it was
+        written in. Giving `render` on its own says how to write an object
+        that has no docstring to detect a format from; giving both converts
+        a document from one format into the other.
     inherit : mapping, optional
         The generalized form, mapping a section name to its sources, as in
         ``inherit={'Parameters': other}``.

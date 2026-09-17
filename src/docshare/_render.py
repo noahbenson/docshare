@@ -77,8 +77,9 @@ def render_document(doc, format=None):
         if doc.sections:
             raise DocFormatError(
                 'cannot render a document with sections when no format is '
-                'known: the document did not come from a parsed docstring, '
-                'so pass an explicit format= to say how it should be written'
+                'known: the document has no docstring of its own to detect '
+                'a format from, so say how it should be written with '
+                'render= (or format=)'
             )
         # Without sections there is nothing format-specific to write.
         format = SUPPORTED_FORMATS[0]

@@ -1,0 +1,325 @@
+# -*- coding: utf-8 -*-
+################################################################################
+# docshare/_sections.py
+#
+# The registry of documentation sections that docshare understands
+# semantically, along with the format-specific titles under which they appear.
+
+"""The registry of semantically recognized documentation sections.
+
+`docshare` normalizes equivalent format-specific section titles onto a single
+set of *kinds*, so that a NumPy ``Parameters`` section and a Google ``Args:``
+section produce the same semantic representation. Sections that are not in
+this registry are preserved as opaque documentation rather than being
+interpreted; see the `docshare.Section` class.
+
+Every recognized kind declares:
+
+* whether it is *structured* --- that is, whether its body consists of
+  discrete documentation items rather than prose;
+* how its items are identified, for the purposes of mapping and dropping
+  them during inheritance;
+* the canonical title it is rendered with in each supported format.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Mapping
+from dataclasses import dataclass
+from types import MappingProxyType
+
+from ._exceptions import DocFormatError
+
+__all__ = (
+    'IDENTITY_NAME',
+    'IDENTITY_NAME_OR_INDEX',
+    'IDENTITY_TYPE_OR_INDEX',
+    'SUPPORTED_FORMATS',
+    'SectionKind',
+    'iter_section_kinds',
+    'normalize_title',
+    'section_kind',
+    'section_title',
+)
+
+
+#: The documentation formats that `docshare` can parse and render.
+SUPPORTED_FORMATS = ('google', 'numpy')
+
+#: Items are identified by name alone; for example, a parameter.
+IDENTITY_NAME = 'name'
+
+#: Items are identified by name when they have one and by their zero-based
+#: position otherwise; for example, a return value.
+IDENTITY_NAME_OR_INDEX = 'name_or_index'
+
+#: Items are identified by their type when they have one and by their
+#: zero-based position otherwise; for example, a raised exception.
+IDENTITY_TYPE_OR_INDEX = 'type_or_index'
+
+
+@dataclass(frozen=True, slots=True)
+class SectionKind:
+    """A documentation section that `docshare` understands semantically.
+
+    Attributes
+    ----------
+    name : str
+        The normalized name of the kind, such as ``'parameters'``.
+    structured : bool
+        Whether the section body consists of discrete documentation items
+        rather than prose.
+    identity : str or None
+        How items in this section are identified during inheritance; one of
+        `IDENTITY_NAME`, `IDENTITY_NAME_OR_INDEX`, or
+        `IDENTITY_TYPE_OR_INDEX`. This is ``None`` for prose sections.
+    titles : Mapping[str, str]
+        The canonical title of this section in each supported format.
+    aliases : tuple of str
+        The normalized titles that map onto this kind.
+    """
+
+    name: str
+    structured: bool
+    identity: str | None
+    titles: Mapping[str, str]
+    aliases: tuple[str, ...]
+
+
+# The registry itself. Each entry is:
+#     (name, structured, identity, numpy title, google title, aliases)
+_KIND_DATA = (
+    (
+        'parameters',
+        True,
+        IDENTITY_NAME,
+        'Parameters',
+        'Args',
+        ('parameters', 'params', 'args', 'arguments'),
+    ),
+    (
+        'other_parameters',
+        True,
+        IDENTITY_NAME,
+        'Other Parameters',
+        'Other Parameters',
+        ('other parameters', 'other params', 'other args', 'other arguments'),
+    ),
+    (
+        'keyword_arguments',
+        True,
+        IDENTITY_NAME,
+        'Keyword Arguments',
+        'Keyword Args',
+        ('keyword arguments', 'keyword args'),
+    ),
+    (
+        'returns',
+        True,
+        IDENTITY_NAME_OR_INDEX,
+        'Returns',
+        'Returns',
+        ('returns', 'return'),
+    ),
+    (
+        'yields',
+        True,
+        IDENTITY_NAME_OR_INDEX,
+        'Yields',
+        'Yields',
+        ('yields', 'yield'),
+    ),
+    (
+        'receives',
+        True,
+        IDENTITY_NAME,
+        'Receives',
+        'Receives',
+        ('receives', 'receive'),
+    ),
+    (
+        'raises',
+        True,
+        IDENTITY_TYPE_OR_INDEX,
+        'Raises',
+        'Raises',
+        ('raises', 'raise', 'exceptions'),
+    ),
+    (
+        'warns',
+        True,
+        IDENTITY_TYPE_OR_INDEX,
+        'Warns',
+        'Warns',
+        ('warns', 'warn'),
+    ),
+    (
+        'attributes',
+        True,
+        IDENTITY_NAME,
+        'Attributes',
+        'Attributes',
+        ('attributes', 'attribute'),
+    ),
+    (
+        'methods',
+        True,
+        IDENTITY_NAME,
+        'Methods',
+        'Methods',
+        ('methods', 'method'),
+    ),
+    (
+        'warnings',
+        False,
+        None,
+        'Warnings',
+        'Warnings',
+        ('warnings', 'warning'),
+    ),
+    (
+        'see_also',
+        False,
+        None,
+        'See Also',
+        'See Also',
+        ('see also',),
+    ),
+    (
+        'notes',
+        False,
+        None,
+        'Notes',
+        'Notes',
+        ('notes', 'note'),
+    ),
+    (
+        'references',
+        False,
+        None,
+        'References',
+        'References',
+        ('references', 'reference'),
+    ),
+    (
+        'examples',
+        False,
+        None,
+        'Examples',
+        'Examples',
+        ('examples', 'example'),
+    ),
+)
+
+
+def _build_registry():
+    kinds = {}
+    aliases = {}
+    for name, structured, identity, numpy, google, alias in _KIND_DATA:
+        kind = SectionKind(
+            name=name,
+            structured=structured,
+            identity=identity,
+            titles=MappingProxyType({'numpy': numpy, 'google': google}),
+            aliases=tuple(alias),
+        )
+        kinds[name] = kind
+        for text in alias:
+            if text in aliases:  # pragma: no cover - guards the table itself
+                raise RuntimeError(f'duplicate section alias: {text}')
+            aliases[text] = kind
+    return MappingProxyType(kinds), MappingProxyType(aliases)
+
+
+_KINDS, _ALIASES = _build_registry()
+
+
+def normalize_title(title):
+    """Return the normalized lookup form of a section title.
+
+    Normalization lowercases the title, removes a trailing colon (as used by
+    Google-style section headers), and collapses internal whitespace. It does
+    not determine whether the resulting title is recognized.
+
+    Parameters
+    ----------
+    title : str
+        The section title as it appears in a docstring.
+
+    Returns
+    -------
+    str
+        The normalized title.
+    """
+    text = str(title).strip()
+    if text.endswith(':'):
+        text = text[:-1].strip()
+    return ' '.join(text.lower().split())
+
+
+def section_kind(title):
+    """Return the `SectionKind` for a section title, if it is recognized.
+
+    Parameters
+    ----------
+    title : str
+        The section title as it appears in a docstring, or a normalized kind
+        name such as ``'see_also'``.
+
+    Returns
+    -------
+    SectionKind or None
+        The matching kind, or ``None`` if the title is not semantically
+        recognized and must therefore be treated as opaque.
+    """
+    text = normalize_title(title)
+    kind = _ALIASES.get(text)
+    if kind is not None:
+        return kind
+    return _KINDS.get(text.replace(' ', '_'))
+
+
+def section_title(kind, format):
+    """Return the canonical title of a section kind in a given format.
+
+    Parameters
+    ----------
+    kind : SectionKind or str
+        The section kind, or the name of one.
+    format : str
+        One of the values in `SUPPORTED_FORMATS`.
+
+    Returns
+    -------
+    str
+        The canonical title, such as ``'Parameters'`` or ``'Args'``.
+
+    Raises
+    ------
+    DocFormatError
+        If the format is not supported or the kind is not recognized.
+    """
+    if format not in SUPPORTED_FORMATS:
+        raise DocFormatError(
+            f'unsupported documentation format: {format!r}; expected one of '
+            f'{", ".join(map(repr, SUPPORTED_FORMATS))}'
+        )
+    if not isinstance(kind, SectionKind):
+        found = section_kind(kind)
+        if found is None:
+            raise DocFormatError(
+                f'unrecognized documentation section kind: {kind!r}'
+            )
+        kind = found
+    return kind.titles[format]
+
+
+def iter_section_kinds():
+    """Iterate over every recognized `SectionKind`, in registry order.
+
+    Returns
+    -------
+    iterator of SectionKind
+        An iterator over the recognized section kinds.
+    """
+    return iter(_KINDS.values())

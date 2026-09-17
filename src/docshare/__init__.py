@@ -22,15 +22,24 @@ from ._exceptions import (
     DocShareError,
     DocSignatureError,
 )
+from ._model import Document, FrozenDict, Item, Section
+from ._sections import SUPPORTED_FORMATS, SectionKind, section_kind
 
 __version__ = '0.1.0.dev0'
 
 __all__ = (
+    'SUPPORTED_FORMATS',
     'DocFormatError',
     'DocInheritanceError',
     'DocMappingError',
     'DocParseError',
     'DocShareError',
     'DocSignatureError',
+    'Document',
+    'FrozenDict',
+    'Item',
+    'Section',
+    'SectionKind',
     '__version__',
+    'section_kind',
 )

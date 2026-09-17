@@ -1,0 +1,145 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+
+# Project metadata #############################################################
+
+[project]
+name = "docshare"
+dynamic = ["version"]
+description = "Parse, compose, and selectively inherit structured Python documentation."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [
+    {name = "Noah C. Benson", email = "nben@uw.edu"},
+]
+keywords = [
+    "documentation",
+    "docstring",
+    "numpydoc",
+    "google-style",
+    "inheritance",
+    "decorator",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+    "Topic :: Documentation",
+    "Topic :: Software Development :: Documentation",
+    "Typing :: Typed",
+]
+# docshare parses docstring section structure itself; docstring_parser is used
+# only for parsing the item lines within recognized sections. See docs/spec.md
+# section 39 on the dependency policy.
+dependencies = [
+    "docstring_parser>=0.16",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "hypothesis>=6.100",
+]
+dev = [
+    "docshare[test]",
+    "ruff>=0.6",
+    "build>=1.2",
+]
+
+[project.urls]
+Homepage = "https://github.com/noahbenson/docshare"
+Repository = "https://github.com/noahbenson/docshare"
+Issues = "https://github.com/noahbenson/docshare/issues"
+
+
+# Build ########################################################################
+
+[tool.hatch.version]
+path = "src/docshare/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/docshare"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src",
+    "/tests",
+    "/docs",
+    "/README.md",
+    "/LICENSE",
+]
+
+
+# Testing ######################################################################
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+addopts = "-ra --strict-markers --strict-config"
+xfail_strict = true
+filterwarnings = ["error"]
+
+[tool.coverage.run]
+source = ["docshare"]
+branch = true
+
+[tool.coverage.report]
+exclude_also = [
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "@overload",
+]
+
+
+# Linting ######################################################################
+
+[tool.ruff]
+line-length = 79
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.format]
+quote-style = "single"
+docstring-code-format = true
+# Ruff formats fenced Python blocks inside Markdown, which would rewrite the
+# deliberately-chosen examples in README.md and docs/spec.md.
+exclude = ["*.md"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "B",    # flake8-bugbear
+    "C4",   # flake8-comprehensions
+    "UP",   # pyupgrade
+    "SIM",  # flake8-simplify
+    "RUF",  # ruff-specific
+    "D",    # pydocstyle
+]
+ignore = [
+    "D203",  # incompatible with D211
+    "D213",  # incompatible with D212
+    "UP009",  # keep the `# -*- coding: utf-8 -*-` file headers
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["D"]

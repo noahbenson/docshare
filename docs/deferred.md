@@ -161,3 +161,46 @@ description to type.
 A fix would require either inventing a type such as `object`, which asserts
 something the author did not write, or leaving the description off entirely,
 which loses it. Neither is clearly better than the current behavior.
+
+
+## 8. Objects that cannot be weakly referenced are not cached
+
+*Raised in phase 4. Specification section 9.*
+
+The specification allows a fallback for objects that cannot be the target of
+a weak reference. The fallback chosen is to parse such an object's
+documentation afresh on every call rather than to record it, since the
+alternatives --- keying on `id`, which is reused after collection, or holding
+a strong reference, which leaks --- are each worse than losing an
+optimization.
+
+The three descriptor types the specification requires support for, produced
+by `staticmethod`, `classmethod`, and `property`, cannot themselves be weakly
+referenced, but each wraps a function that can be, and the cache keys on that
+function instead. So the uncached case is confined to objects that both
+resist weak reference and wrap nothing, such as a write-only property or an
+`int`. Correctness is unaffected; only the caching is.
+
+One consequence: a composed document recorded for such an object cannot be
+recorded at all, so `docinfo` would reparse its rendered docstring. Where
+rendering is lossy, as in case 7 above, the reparsed document could differ
+from the composed one. No object of this kind is a plausible decoration
+target, but the interaction is worth remembering.
+
+
+## 9. A descriptor and its underlying function share a cache key
+
+*Raised in phase 4.*
+
+Because a `property` keys on its `fget`, a property built with an overridden
+docstring, as in `property(f, doc='Something else.')`, shares a cache key
+with `f` itself while having different documentation. The same holds for a
+`staticmethod` wrapping a function that is also documented in its own right.
+
+Correctness is preserved by the fingerprint: an entry is used only while the
+recorded text still matches the object's current `__doc__`, so a lookup that
+collides simply reparses. The only cost is that alternating lookups between
+the two objects would reparse every time instead of hitting the cache.
+
+A fix would require a composite key, which a `WeakKeyDictionary` cannot hold
+directly. Revisit only if the pattern turns out to be common.

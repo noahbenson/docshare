@@ -14,6 +14,7 @@ at decoration time, along with `docparse` and `docinfo`, which respectively
 parse and cache the semantic representation of an object's documentation.
 """
 
+from ._cache import clear_docinfo, docinfo, docparse
 from ._exceptions import (
     DocFormatError,
     DocInheritanceError,
@@ -41,5 +42,8 @@ __all__ = (
     'Section',
     'SectionKind',
     '__version__',
+    'clear_docinfo',
+    'docinfo',
+    'docparse',
     'section_kind',
 )

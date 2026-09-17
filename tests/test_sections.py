@@ -11,6 +11,7 @@ from docshare._sections import (
     SUPPORTED_FORMATS,
     iter_section_kinds,
     normalize_title,
+    render_kind,
     section_title,
 )
 
@@ -187,6 +188,63 @@ def test_kind_titles_mapping_is_read_only():
     kind = section_kind('parameters')
     with pytest.raises(TypeError):
         kind.titles['numpy'] = 'Nope'
+
+
+def test_keyword_arguments_merge_into_parameters_in_numpy():
+    # The NumPy standard has no keyword-argument section; numpydoc documents
+    # keyword arguments in Parameters.
+    assert render_kind('keyword_arguments', 'numpy').name == 'parameters'
+
+
+def test_keyword_arguments_stay_distinct_in_google():
+    assert render_kind('keyword_arguments', 'google').name == (
+        'keyword_arguments'
+    )
+
+
+@pytest.mark.parametrize('kind', ALL_KINDS, ids=lambda k: k.name)
+def test_only_keyword_arguments_is_merged(kind):
+    if kind.name == 'keyword_arguments':
+        assert dict(kind.merges) == {'numpy': 'parameters'}
+    else:
+        assert dict(kind.merges) == {}
+
+
+@pytest.mark.parametrize('kind', ALL_KINDS, ids=lambda k: k.name)
+def test_unmerged_kinds_render_as_themselves(kind):
+    for fmt in SUPPORTED_FORMATS:
+        if fmt not in kind.merges:
+            assert render_kind(kind, fmt) is kind
+
+
+@pytest.mark.parametrize('kind', ALL_KINDS, ids=lambda k: k.name)
+def test_a_merge_target_is_never_itself_merged(kind):
+    # Guards against a merge chain, which the renderer does not follow.
+    for fmt, target in kind.merges.items():
+        assert fmt not in section_kind(target).merges
+
+
+@pytest.mark.parametrize('kind', ALL_KINDS, ids=lambda k: k.name)
+def test_a_merge_preserves_structuredness(kind):
+    for target in kind.merges.values():
+        assert section_kind(target).structured == kind.structured
+        assert section_kind(target).identity == kind.identity
+
+
+def test_render_kind_accepts_a_kind_or_a_title():
+    kind = section_kind('parameters')
+    assert render_kind(kind, 'numpy') is kind
+    assert render_kind('Keyword Args', 'numpy').name == 'parameters'
+
+
+def test_render_kind_rejects_an_unsupported_format():
+    with pytest.raises(DocFormatError, match='unsupported documentation'):
+        render_kind('parameters', 'rest')
+
+
+def test_render_kind_rejects_an_unrecognized_kind():
+    with pytest.raises(DocFormatError, match='unrecognized documentation'):
+        render_kind('Efferents', 'numpy')
 
 
 @pytest.mark.parametrize(

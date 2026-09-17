@@ -19,7 +19,15 @@ Every recognized kind declares:
   discrete documentation items rather than prose;
 * how its items are identified, for the purposes of mapping and dropping
   them during inheritance;
-* the canonical title it is rendered with in each supported format.
+* the canonical title it is rendered with in each supported format;
+* the kind it is merged into when a format has no section of its own for it.
+
+The last of these exists because the formats do not recognize quite the same
+sections. Google style has a ``Keyword Args:`` section; the NumPy standard
+does not, and documents keyword arguments in ``Parameters`` instead. Such a
+kind is kept distinct in the model, so that a document written in a format
+that distinguishes it round-trips faithfully, and is merged only when it is
+rendered into a format that does not.
 """
 
 from __future__ import annotations
@@ -38,6 +46,7 @@ __all__ = (
     'SectionKind',
     'iter_section_kinds',
     'normalize_title',
+    'render_kind',
     'section_kind',
     'section_title',
 )
@@ -77,6 +86,10 @@ class SectionKind:
         The canonical title of this section in each supported format.
     aliases : tuple of str
         The normalized titles that map onto this kind.
+    merges : Mapping[str, str]
+        The kind this one is merged into when rendered in a given format,
+        for formats that have no section of their own for it. Formats absent
+        from this mapping render the section under its own title.
     """
 
     name: str
@@ -84,6 +97,15 @@ class SectionKind:
     identity: str | None
     titles: Mapping[str, str]
     aliases: tuple[str, ...]
+    merges: Mapping[str, str]
+
+
+# Kinds that one format has no section of its own for, and the kind they are
+# therefore merged into when rendered in that format. The NumPy standard has
+# no keyword-argument section; keyword arguments are documented in Parameters.
+_MERGES = {
+    'keyword_arguments': {'numpy': 'parameters'},
+}
 
 
 # The registry itself. Each entry is:
@@ -222,6 +244,7 @@ def _build_registry():
             identity=identity,
             titles=MappingProxyType({'numpy': numpy, 'google': google}),
             aliases=tuple(alias),
+            merges=MappingProxyType(dict(_MERGES.get(name, {}))),
         )
         kinds[name] = kind
         for text in alias:
@@ -312,6 +335,49 @@ def section_title(kind, format):
             )
         kind = found
     return kind.titles[format]
+
+
+def render_kind(kind, format):
+    """Return the kind a section is actually rendered as in a given format.
+
+    Most sections render as themselves. A section that the requested format
+    has no equivalent of is merged into the kind that format documents such
+    content under; a Google ``Keyword Args:`` section, for example, renders
+    into ``Parameters`` in NumPy style, because the NumPy standard has no
+    keyword-argument section.
+
+    Parameters
+    ----------
+    kind : SectionKind or str
+        The section kind, or the name of one.
+    format : str
+        One of the values in `SUPPORTED_FORMATS`.
+
+    Returns
+    -------
+    SectionKind
+        The kind to render under. This is `kind` itself unless the format
+        requires a merge.
+
+    Raises
+    ------
+    DocFormatError
+        If the format is not supported or the kind is not recognized.
+    """
+    if format not in SUPPORTED_FORMATS:
+        raise DocFormatError(
+            f'unsupported documentation format: {format!r}; expected one of '
+            f'{", ".join(map(repr, SUPPORTED_FORMATS))}'
+        )
+    if not isinstance(kind, SectionKind):
+        found = section_kind(kind)
+        if found is None:
+            raise DocFormatError(
+                f'unrecognized documentation section kind: {kind!r}'
+            )
+        kind = found
+    target = kind.merges.get(format)
+    return kind if target is None else _KINDS[target]
 
 
 def iter_section_kinds():

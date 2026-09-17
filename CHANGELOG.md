@@ -23,8 +23,11 @@ First release.
   detection and a `render` argument for writing a document in the other
   format.
 * Inheritance of every recognized section, with multiple sources resolved
-  right to left, explicit binding of one item to one source, dropping,
-  and target-to-source item mapping.
+  right to left, explicit binding of one item to one source, exclusion, and
+  target-to-source item mapping. A section documenting the callable's
+  parameters is ordered by the signature and excludes one of the target's own
+  parameters with `drop<short>`; every other section is driven by its sources
+  and excludes one of theirs with `ignore<short>`.
 * Preservation of grouped declarations such as `x, y : float`, including
   renaming through `parammap`; partially inheriting a group is an error.
 * Preservation of unrecognized sections, which are inherited only when named

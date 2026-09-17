@@ -206,26 +206,47 @@ A fix would require a composite key, which a `WeakKeyDictionary` cannot hold
 directly. Revisit only if the pattern turns out to be common.
 
 
-## 10. `dropparams` and `dropreturns` name opposite sides
+## 10. `dropparams` and `dropreturns` named opposite sides --- RESOLVED
 
-*Raised in phase 6. Specification sections 17 and 24.*
+*Raised in phase 6; resolved after phase 8.*
 
-Section 17 says `dropparams` excludes *target* parameters from inheritance:
-"do not supply inherited documentation for `foo`". Section 24 says
-`dropreturns` specifies *source* return items that should not be inherited,
-and its example confirms it: dropping `(0, 2)` from a source with four
-returns inherits source returns 1 and 3.
+Section 17 made `dropparams` exclude a *target* parameter, while section 24
+made `dropreturns` exclude a *source* return item. The two are opposite
+directions, and neither is arbitrary: each names the only side that is both
+available and useful.
 
-These are opposite directions, and the implementation follows each literally:
-a name-identified section drops target identities, an index-identified
-section drops source identities. For names the two coincide unless `parammap`
-is also in play, and for indices only the source side is meaningful, so the
-inconsistency is invisible in every ordinary case.
+A section documenting a callable's parameters is ordered by the signature.
+The target says what exists and a source only fills it in, so the useful
+exclusion names one of the target's own parameters; excluding a source
+parameter would do nothing, because one the target does not have is never
+inherited to begin with. Every other section is driven by its sources, which
+decide what items exist --- there is no signature listing a function's return
+values, and a target may document none at all --- so the only identities
+available are the source's; and excluding a target item would do nothing
+either, because the target's own documentation is kept regardless.
 
-It does surface when `parammap` and `dropparams` are combined: dropping the
-target name is what excludes the parameter, not the source name it maps from.
-Worth deciding deliberately when the specification is next revised.
+Resolved by naming the two differently rather than by unifying them. A
+target-driven section offers `drop<short>` and no `ignore<short>`; a
+source-driven section offers `ignore<short>` and no `drop<short>`. Using the
+wrong one is an error that names the right one and says why:
 
+```text
+docshare() got an unexpected argument 'dropreturns'; use ignorereturns=
+instead. The Returns section is driven by its sources, which decide what
+items exist, so an exclusion names one of the source's items. Excluding one
+of the target's would do nothing, since the target's own documentation is
+kept regardless.
+```
+
+Resolving this also uncovered two defects, both fixed at the same time. The
+Other Parameters and Keyword Args sections document real parameters of the
+callable but were not ordered by its signature, so inheriting one could
+document a parameter the target did not have; they are now signature-ordered
+like Parameters, and the composed document is validated before it is
+installed, so nothing of the kind can reach `__doc__` unreported. And the
+item mapping for a source-driven named section, such as `attributemap`, did
+nothing at all, because the target contributed no candidate names for the
+mapping to rename; a mapped name is now a candidate in its own right.
 
 ## 11. An integer bound to a name-identified section is ignored
 

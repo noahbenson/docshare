@@ -34,7 +34,12 @@ from ._sections import (
     IDENTITY_TYPE_OR_INDEX,
     section_kind,
 )
-from ._signature import as_names, signature_of, strip_stars
+from ._signature import (
+    PARAMETER_KINDS,
+    as_names,
+    signature_of,
+    strip_stars,
+)
 
 __all__ = ('Operation', 'compose')
 
@@ -55,10 +60,10 @@ class Operation(NamedTuple):
         ``(source, key)`` pair binding one item to one source regardless of
         that order.
     drop : frozenset
-        Identities excluded from inheritance. For a name-identified section
-        these are target names; for an index-identified section they are
-        source identities, following specification sections 17 and 24
-        respectively.
+        Identities excluded from inheritance. For a section ordered by the
+        target's signature these are the target's own parameter names, which
+        the decorator spells ``drop<short>``; for every other section they
+        are the source's item identities, spelled ``ignore<short>``.
     mapping : dict
         A correspondence from target identity to source identity.
     """
@@ -168,29 +173,38 @@ def _same(key, wanted):
     return isinstance(key, str) and strip_stars(key) == strip_stars(wanted)
 
 
-def _parameter_order(obj, doc, kind, extraparam, specs):
+def _parameter_order(obj, doc, kind, extraparam, specs, mapping):
     """Decide the order the items of a name-identified section appear in.
 
-    A callable's signature decides the order of its parameters, which is
-    what specification section 37 asks for. Where there is no signature, as
-    for an Attributes section, the target's own order comes first and
-    inherited names follow in source order.
+    Every section that documents a callable's parameters is ordered by that
+    callable's signature, which is what specification section 37 asks for,
+    and which also settles what may be inherited: a source parameter the
+    target does not accept is not a candidate at all.
+
+    A section such as Attributes documents no parameters and has no
+    signature to consult. There the target cannot say what exists, so the
+    source does: the target's own names come first and the source's follow.
+    A name the caller has mapped is a candidate too, since mapping it is an
+    assertion that the target has it, and the source name it maps from is
+    then not a candidate in its own right.
     """
     order = []
-    signature = signature_of(obj) if kind == 'parameters' else None
+    signature = signature_of(obj) if kind in PARAMETER_KINDS else None
     if signature is not None:
         order.extend(signature.parameters)
     order.extend(strip_stars(name) for name in as_names(extraparam))
     for item in _section_items(doc, kind):
         order.extend(strip_stars(name) for name in item.names)
     if signature is None:
-        # With no signature there is nothing to say which items the target
-        # has, so every name a source documents is a candidate. Where there
-        # is a signature it alone decides, and a source name the target does
-        # not have is simply not inherited.
+        order.extend(mapping)
+        renamed = set(mapping.values())
         for spec in specs:
             for item in _section_items(spec.doc, kind):
-                order.extend(strip_stars(name) for name in item.names)
+                order.extend(
+                    strip_stars(name)
+                    for name in item.names
+                    if strip_stars(name) not in renamed
+                )
     seen = set()
     unique = []
     for name in order:
@@ -212,7 +226,7 @@ def _inherit_named(obj, doc, operation, kind, extraparam):
         reverse.setdefault(source, target)
     drop = {strip_stars(str(name)) for name in operation.drop}
     documented = _named_index(doc, kind)
-    order = _parameter_order(obj, doc, kind, extraparam, specs)
+    order = _parameter_order(obj, doc, kind, extraparam, specs, mapping)
     wanted = {
         name for name in order if name not in documented and name not in drop
     }

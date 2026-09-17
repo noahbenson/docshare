@@ -498,11 +498,11 @@ def test_section_22_names_all_exist(name):
     [
         'dropparams',
         'parammap',
-        'dropreturns',
+        'ignorereturns',
         'returnmap',
-        'dropraises',
+        'ignoreraises',
         'raisemap',
-        'dropattributes',
+        'ignoreattributes',
         'attributemap',
         'dropotherparams',
         'otherparammap',
@@ -512,6 +512,270 @@ def test_section_22_names_all_exist(name):
 )
 def test_section_42_naming_is_consistent(name):
     assert name in SECTION_ARGUMENTS
+
+
+# Excluding items: drop names yours, ignore names the source's #############
+
+
+@pytest.mark.parametrize(
+    'kind', ['parameters', 'other_parameters', 'keyword_arguments']
+)
+def test_parameter_sections_offer_drop_not_ignore(kind):
+    short = {
+        'parameters': 'params',
+        'other_parameters': 'otherparams',
+        'keyword_arguments': 'keywordargs',
+    }[kind]
+    assert f'drop{short}' in SECTION_ARGUMENTS
+    assert f'ignore{short}' not in SECTION_ARGUMENTS
+
+
+@pytest.mark.parametrize(
+    'short',
+    [
+        'returns',
+        'yields',
+        'receives',
+        'raises',
+        'warns',
+        'attributes',
+        'methods',
+    ],
+)
+def test_source_driven_sections_offer_ignore_not_drop(short):
+    assert f'ignore{short}' in SECTION_ARGUMENTS
+    assert f'drop{short}' not in SECTION_ARGUMENTS
+
+
+def test_ignoreparams_is_rejected_and_names_dropparams():
+    def f(x):
+        """F."""
+
+    with pytest.raises(DocShareError, match='use dropparams='):
+        docshare(f, ignoreparams='x')
+
+
+def test_dropreturns_is_rejected_and_names_ignorereturns():
+    def f(x):
+        """F."""
+
+    with pytest.raises(DocShareError, match='use ignorereturns='):
+        docshare(f, dropreturns=0)
+
+
+def test_the_wrong_prefix_error_explains_which_side_is_meant():
+    def f(x):
+        """F."""
+
+    with pytest.raises(DocShareError) as info:
+        docshare(f, ignoreparams='x')
+    assert 'ordered by the signature' in str(info.value)
+    with pytest.raises(DocShareError) as info:
+        docshare(f, dropattributes='x')
+    assert 'driven by its sources' in str(info.value)
+
+
+@pytest.mark.parametrize(
+    ('wrong', 'right'),
+    [
+        ('ignoreparams', 'dropparams'),
+        ('ignoreotherparams', 'dropotherparams'),
+        ('ignorekeywordargs', 'dropkeywordargs'),
+        ('dropreturns', 'ignorereturns'),
+        ('dropyields', 'ignoreyields'),
+        ('dropraises', 'ignoreraises'),
+        ('dropwarns', 'ignorewarns'),
+        ('dropattributes', 'ignoreattributes'),
+        ('dropmethods', 'ignoremethods'),
+        ('dropreceives', 'ignorereceives'),
+    ],
+)
+def test_every_wrong_prefix_names_its_counterpart(wrong, right):
+    def f(x):
+        """F."""
+
+    with pytest.raises(DocShareError, match=f'use {right}='):
+        docshare(f, **{wrong: 'x'})
+
+
+def test_a_prefix_mistake_on_a_prose_section_falls_back_to_resemblance():
+    # Prose sections have no exclusion at all, so there is no counterpart to
+    # name and the ordinary suggestion applies.
+    def f(x):
+        """F."""
+
+    with pytest.raises(DocShareError, match='did you mean'):
+        docshare(f, dropnotes='x')
+
+
+# Every parameter section is ordered by the signature ######################
+
+
+def test_other_parameters_cannot_inherit_a_parameter_the_target_lacks():
+    def base(x, y):
+        """B.
+
+        Other Parameters
+        ----------------
+        ghost : int
+            Not a parameter of the target.
+        y : float
+            The y.
+        """
+
+    @docshare(format='numpy', inheritotherparams=base)
+    def f(x, y):
+        """F."""
+
+    assert 'ghost' not in f.__doc__
+    assert 'The y.' in f.__doc__
+
+
+def test_keyword_args_cannot_inherit_a_parameter_the_target_lacks():
+    def base(**kwargs):
+        """B.
+
+        Keyword Args:
+            ghost (int): Not a parameter of the target.
+        """
+
+    @docshare(format='google', inheritkeywordargs=base)
+    def f(**kwargs):
+        """F."""
+
+    assert f.__doc__ == 'F.'
+
+
+def test_other_parameters_follow_the_signature_order():
+    def base(x, y):
+        """B.
+
+        Other Parameters
+        ----------------
+        y : float
+            The y.
+        x : float
+            The x.
+        """
+
+    @docshare(format='numpy', inheritotherparams=base)
+    def f(x, y):
+        """F."""
+
+    assert f.__doc__.index('x : float') < f.__doc__.index('y : float')
+
+
+def test_extraparam_admits_an_inherited_other_parameter():
+    def base(**kwargs):
+        """B.
+
+        Other Parameters
+        ----------------
+        null : bool
+            The null.
+        """
+
+    @docshare(format='numpy', inheritotherparams=base, extraparam='null')
+    def f(**kwargs):
+        """F."""
+
+    assert 'The null.' in f.__doc__
+
+
+def test_the_composed_document_is_validated():
+    # A source-driven section could otherwise document a parameter the
+    # target does not have without anything noticing.
+    from docshare import Document, Item, Section
+    from docshare._decorator import _apply
+
+    def f(x):
+        """F."""
+
+    phantom = Document(
+        sections=[
+            Section(
+                name='Parameters',
+                kind='parameters',
+                items=[Item(names='ghost', description='Nope.')],
+            )
+        ],
+        format='numpy',
+    )
+    import docshare._decorator as decorator
+
+    original = decorator.compose
+    decorator.compose = lambda *a, **k: phantom
+    try:
+        with pytest.raises(DocSignatureError, match="'ghost'"):
+            _apply(f, {'format': 'numpy', 'inheritparams': source})
+    finally:
+        decorator.compose = original
+    assert f.__doc__ == 'F.'
+
+
+# Maps for source-driven sections ###########################################
+
+
+def test_attributemap_renames_an_inherited_attribute():
+    def base():
+        """B.
+
+        Attributes
+        ----------
+        cache : dict
+            The cache.
+        """
+
+    @docshare(
+        format='numpy', inheritattributes=base, attributemap={'store': 'cache'}
+    )
+    class Target:
+        """T."""
+
+    assert 'store : dict' in Target.__doc__
+    assert 'cache : dict' not in Target.__doc__
+
+
+def test_attributemap_leaves_unmapped_attributes_alone():
+    def base():
+        """B.
+
+        Attributes
+        ----------
+        cache : dict
+            The cache.
+        other : int
+            The other.
+        """
+
+    @docshare(
+        format='numpy', inheritattributes=base, attributemap={'store': 'cache'}
+    )
+    class Target:
+        """T."""
+
+    assert 'store : dict' in Target.__doc__
+    assert 'other : int' in Target.__doc__
+
+
+def test_ignoreattributes_names_a_source_attribute():
+    def base():
+        """B.
+
+        Attributes
+        ----------
+        cache : dict
+            The cache.
+        other : int
+            The other.
+        """
+
+    @docshare(format='numpy', inheritattributes=base, ignoreattributes='cache')
+    class Target:
+        """T."""
+
+    assert 'cache' not in Target.__doc__
+    assert 'other : int' in Target.__doc__
 
 
 @pytest.mark.parametrize('name', ['inheritseealso', 'inheritreferences'])
@@ -824,7 +1088,7 @@ def test_parammap_through_the_decorator():
     assert 'The foo parameter.' in target.__doc__
 
 
-def test_dropreturns_through_the_decorator():
+def test_ignorereturns_through_the_decorator():
     def many():
         """M.
 
@@ -839,7 +1103,7 @@ def test_dropreturns_through_the_decorator():
     def target():
         """T."""
 
-    docshare(target, format='numpy', inheritreturns=many, dropreturns=0)
+    docshare(target, format='numpy', inheritreturns=many, ignorereturns=0)
     assert 'Second.' in target.__doc__
     assert 'First.' not in target.__doc__
 
@@ -869,12 +1133,12 @@ def test_returnmap_through_the_decorator():
     assert target.__doc__.endswith('float\n    First.\nfloat\n    Mine.')
 
 
-def test_raisemap_and_dropraises_through_the_decorator():
+def test_raisemap_and_ignoreraises_through_the_decorator():
     def target():
         """T."""
 
     docshare(
-        target, format='numpy', inheritraises=source, dropraises='ValueError'
+        target, format='numpy', inheritraises=source, ignoreraises='ValueError'
     )
     assert 'If bad.' not in target.__doc__
 
@@ -934,7 +1198,7 @@ def test_drop_accepts_an_iterable_of_positions():
     def target():
         """T."""
 
-    docshare(target, format='numpy', inheritreturns=many, dropreturns=[0, 2])
+    docshare(target, format='numpy', inheritreturns=many, ignorereturns=[0, 2])
     assert 'Second.' in target.__doc__
     assert 'First.' not in target.__doc__
     assert 'Third.' not in target.__doc__

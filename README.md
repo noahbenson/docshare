@@ -131,8 +131,8 @@ binding.
 
 ### Skipping and renaming
 
-`dropparams` excludes a parameter from inheritance. It does not remove
-documentation the object wrote for itself:
+`dropparams` names one of your own parameters and excludes it from
+inheritance. It does not remove documentation the object wrote for itself:
 
 ```python
 @docshare(format='numpy', inheritparams=base, dropparams='internal')
@@ -175,10 +175,12 @@ they do not; items in `Raises` and `Warns` are identified by their exception
 type.
 
 ```python
-@docshare(format='numpy', inheritreturns=base, dropreturns=(0, 2))
+@docshare(format='numpy', inheritreturns=base, ignorereturns=(0, 2))
 def f():
     """..."""
 ```
+
+If `base` documents four return values, this takes the second and fourth.
 
 Because an unnamed return value has nothing to identify it, an object that
 documents one *and* inherits that section must say which inherited item it
@@ -252,20 +254,34 @@ every member still corresponds to one of your parameters.
 | `extraparam` | Parameters that are documented deliberately but absent from the signature. |
 
 Every section accepts `inherit<short>`. Every section that holds items also
-accepts `drop<short>` and `<singular>map`.
+accepts `<singular>map` and one argument that excludes an item from
+inheritance --- named for the side it acts on, since the two sides are never
+interchangeable:
 
-| Section | Inherit | Drop | Map |
+* **`drop<short>`** names one of *your* parameters. The sections that
+  document a callable's parameters are ordered by its signature, so you say
+  which of your own parameters should not receive inherited documentation.
+  It does not remove documentation you wrote yourself.
+* **`ignore<short>`** names one of the *source's* items. Every other section
+  is driven by its sources --- there is no signature listing your return
+  values --- so you say which of the source's items not to take.
+
+There is no `ignoreparams` and no `ignorereturns` of the other kind, because
+each would do nothing: a source parameter you do not have is never inherited
+anyway, and your own documentation is kept regardless.
+
+| Section | Inherit | Exclude | Map |
 |---|---|---|---|
 | Parameters / Args | `inheritparams` | `dropparams` | `parammap` |
 | Other Parameters | `inheritotherparams` | `dropotherparams` | `otherparammap` |
 | Keyword Args | `inheritkeywordargs` | `dropkeywordargs` | `keywordargmap` |
-| Returns | `inheritreturns` | `dropreturns` | `returnmap` |
-| Yields | `inherityields` | `dropyields` | `yieldmap` |
-| Receives | `inheritreceives` | `dropreceives` | `receivemap` |
-| Raises | `inheritraises` | `dropraises` | `raisemap` |
-| Warns | `inheritwarns` | `dropwarns` | `warnmap` |
-| Attributes | `inheritattributes` | `dropattributes` | `attributemap` |
-| Methods | `inheritmethods` | `dropmethods` | `methodmap` |
+| Returns | `inheritreturns` | `ignorereturns` | `returnmap` |
+| Yields | `inherityields` | `ignoreyields` | `yieldmap` |
+| Receives | `inheritreceives` | `ignorereceives` | `receivemap` |
+| Raises | `inheritraises` | `ignoreraises` | `raisemap` |
+| Warns | `inheritwarns` | `ignorewarns` | `warnmap` |
+| Attributes | `inheritattributes` | `ignoreattributes` | `attributemap` |
+| Methods | `inheritmethods` | `ignoremethods` | `methodmap` |
 | Warnings | `inheritwarnings` | --- | --- |
 | See Also | `inheritseealso` | --- | --- |
 | Notes | `inheritnotes` | --- | --- |

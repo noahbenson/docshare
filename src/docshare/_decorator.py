@@ -16,9 +16,14 @@ written out section by section, so that the vocabulary is uniform.
 For a section named by its short form --- ``params`` for Parameters,
 ``seealso`` for See Also, and so on --- the decorator accepts
 ``inherit<short>`` for every section, and for a section that holds items also
-``drop<short>`` and ``<singular>map``. So Parameters offers `inheritparams`,
-`dropparams`, and `parammap`, and Raises offers `inheritraises`,
-`dropraises`, and `raisemap`.
+``<singular>map`` and an argument that excludes an item from inheritance.
+
+That last one is named for the side it acts on. A section documenting the
+callable's parameters is driven by the signature, so ``drop<short>`` names
+one of the target's own parameters: Parameters offers `inheritparams`,
+`dropparams`, and `parammap`. Every other section is driven by its sources,
+so ``ignore<short>`` names one of the source's items: Raises offers
+`inheritraises`, `ignoreraises`, and `raisemap`.
 
 Composition happens once, when the decorator runs. Nothing is recomputed
 afterwards, and a docstring assigned later by another decorator is outside
@@ -34,7 +39,7 @@ from ._exceptions import DocShareError
 from ._inherit import Operation, compose
 from ._render import render_document
 from ._sections import iter_section_kinds, section_kind
-from ._signature import validate_signature
+from ._signature import PARAMETER_KINDS, validate_signature
 
 __all__ = ('docshare',)
 
@@ -59,6 +64,26 @@ def _map_name(short):
     return f'{stem}map'
 
 
+def _exclude_prefix(kind_name):
+    """Return the prefix a section's exclusion argument is named with.
+
+    A section that documents a callable's parameters is driven by the
+    signature: the target says what exists and a source only fills it in, so
+    the useful exclusion names one of the target's own parameters and is
+    called ``drop``. Every other section is driven by its sources, which
+    decide what exists, so the useful exclusion names one of the source's
+    items and is called ``ignore``.
+
+    The two are never interchangeable. Excluding a source parameter would do
+    nothing, because a parameter the target does not have is never inherited
+    to begin with; and excluding a target item in a source-driven section
+    would do nothing either, because the target's own documentation is kept
+    regardless. Naming them differently keeps that from being something a
+    caller has to remember.
+    """
+    return 'drop' if kind_name in PARAMETER_KINDS else 'ignore'
+
+
 def _build_arguments():
     """Build the table of per-section arguments the decorator accepts."""
     table = {}
@@ -66,7 +91,8 @@ def _build_arguments():
         short = _short(kind.name)
         table[f'inherit{short}'] = ('inherit', kind.name)
         if kind.structured:
-            table[f'drop{short}'] = ('drop', kind.name)
+            prefix = _exclude_prefix(kind.name)
+            table[f'{prefix}{short}'] = ('drop', kind.name)
             table[_map_name(short)] = ('map', kind.name)
     return table
 
@@ -132,8 +158,50 @@ def _as_identities(value):
     return frozenset(value)
 
 
+#: Why each exclusion prefix belongs to the sections it belongs to.
+_EXCLUDE_REASON = {
+    'drop': (
+        'is ordered by the signature, so an exclusion names one of the '
+        "target's own parameters. Excluding one of the source's would do "
+        'nothing, since a parameter the target does not have is never '
+        'inherited anyway'
+    ),
+    'ignore': (
+        'is driven by its sources, which decide what items exist, so an '
+        "exclusion names one of the source's items. Excluding one of the "
+        "target's would do nothing, since the target's own documentation is "
+        'kept regardless'
+    ),
+}
+
+
+def _wrong_exclude_prefix(name):
+    """Return the argument `name` was meant to be, if it has the other prefix.
+
+    `dropreturns` and `ignoreparams` are the two mistakes this vocabulary
+    invites, and each has exactly one right answer, so they are worth
+    answering specifically rather than by resemblance.
+    """
+    for wrong, right in (('ignore', 'drop'), ('drop', 'ignore')):
+        if not name.startswith(wrong):
+            continue
+        intended = right + name[len(wrong) :]
+        if intended in SECTION_ARGUMENTS:
+            return (intended, right)
+    return (None, None)
+
+
 def _unknown_argument(name):
     """Raise a helpful error for an argument `docshare` does not accept."""
+    (intended, prefix) = _wrong_exclude_prefix(name)
+    if intended is not None:
+        kind = SECTION_ARGUMENTS[intended][1]
+        title = kind.replace('_', ' ').title()
+        raise DocShareError(
+            f'docshare() got an unexpected argument {name!r}; use '
+            f'{intended}= instead. The {title} section '
+            f'{_EXCLUDE_REASON[prefix]}'
+        )
     known = sorted(set(SECTION_ARGUMENTS) | set(GENERAL_ARGUMENTS))
     close = difflib.get_close_matches(name, known, n=3, cutoff=0.6)
     hint = f'; did you mean {" or ".join(map(repr, close))}?' if close else ''
@@ -274,6 +342,15 @@ def _apply(obj, options):
         set_docinfo(obj, doc)
         return obj
     composed = compose(obj, doc, operations, extraparam=extraparam)
+    # Inheritance into a signature-ordered section cannot invent a parameter,
+    # but a section that is driven by its sources could, so the composed
+    # document is checked before it is installed.
+    validate_signature(
+        obj,
+        composed,
+        extraparam=extraparam,
+        parammap=options.get('parammap'),
+    )
     _assign(obj, render_document(composed, format=render))
     set_docinfo(obj, composed)
     return obj
@@ -318,10 +395,14 @@ def docshare(obj=None, /, **options):
         name them, typically because they are taken from ``**kwargs``.
     **options
         Per-section arguments. Every section accepts ``inherit<short>``, and
-        every section holding items also accepts ``drop<short>`` and
-        ``<singular>map``: `inheritparams`, `dropparams`, and `parammap` for
-        Parameters, `inheritreturns`, `dropreturns`, and `returnmap` for
-        Returns, and so on.
+        every section holding items also accepts ``<singular>map`` and an
+        exclusion. A section documenting the callable's parameters is driven
+        by the signature, so its exclusion names one of the target's own
+        parameters and is called ``drop<short>``: `inheritparams`,
+        `dropparams`, and `parammap`. Every other section is driven by its
+        sources, so its exclusion names one of the source's items and is
+        called ``ignore<short>``: `inheritreturns`, `ignorereturns`, and
+        `returnmap`.
 
     Returns
     -------

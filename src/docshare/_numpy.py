@@ -1,0 +1,94 @@
+# -*- coding: utf-8 -*-
+################################################################################
+# docshare/_numpy.py
+#
+# Parsing the items of a NumPy-style section body.
+
+"""Interpretation of NumPy-style section bodies.
+
+The structural work of finding sections is done by `docshare._lex`; this
+module is concerned only with the items inside a structured section, which in
+NumPy style are written as a declaration line followed by an indented
+description::
+
+    x, y : float
+        Cartesian coordinates.
+
+A declaration may name several parameters at once, as above. Such an item is
+a group, and it is kept intact rather than being split into separate items,
+as required by specification section 21.
+"""
+
+from __future__ import annotations
+
+import re
+
+from ._lex import iter_blocks
+from ._model import Item
+from ._sections import IDENTITY_NAME
+
+__all__ = ('parse_items',)
+
+
+#: A declaration line, which is a name list, a colon, and a type. Both the
+#: name list and the type may be absent.
+_DECLARATION = re.compile(
+    r'^(?P<names>[^:]*?)[ \t]*:[ \t]*(?P<type>.*?)[ \t]*$'
+)
+
+
+def split_names(text):
+    """Split a NumPy name list into individual names.
+
+    Parameters
+    ----------
+    text : str
+        The name portion of a declaration, such as ``'x, y'``.
+
+    Returns
+    -------
+    tuple of str
+        The individual names, in the order written.
+    """
+    return tuple(part.strip() for part in text.split(',') if part.strip())
+
+
+def parse_items(body, kind):
+    """Parse the items of a NumPy-style structured section body.
+
+    Parameters
+    ----------
+    body : sequence of str
+        The dedented lines of the section body.
+    kind : SectionKind
+        The kind of section being parsed, which decides whether a bare
+        declaration names an item or gives its type.
+
+    Returns
+    -------
+    tuple of Item
+        The parsed items, in the order they appear.
+    """
+    return tuple(
+        _parse_item(header, description, kind)
+        for (header, description) in iter_blocks(body)
+    )
+
+
+def _parse_item(header, description, kind):
+    """Build a single `Item` from a declaration line and its description."""
+    match = _DECLARATION.match(header)
+    if match is None:
+        # No colon: the declaration is bare. In a section whose items are
+        # identified by name, such as Parameters, a bare declaration names
+        # the item; elsewhere, as in Returns and Raises, it gives its type.
+        if kind.identity == IDENTITY_NAME:
+            return Item(
+                names=split_names(header),
+                type=None,
+                description=description,
+            )
+        return Item(names=(), type=header, description=description)
+    names = split_names(match.group('names'))
+    type_ = match.group('type') or None
+    return Item(names=names, type=type_, description=description)

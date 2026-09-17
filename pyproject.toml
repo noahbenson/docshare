@@ -41,12 +41,11 @@ classifiers = [
     "Topic :: Software Development :: Documentation",
     "Typing :: Typed",
 ]
-# docshare parses docstring section structure itself; docstring_parser is used
-# only for parsing the item lines within recognized sections. See docs/spec.md
-# section 39 on the dependency policy.
-dependencies = [
-    "docstring_parser>=0.16",
-]
+# docshare has no runtime dependencies: every third-party docstring parser
+# evaluated discards the unknown sections and grouped declarations that
+# specification sections 13, 21, 29, and 30 require be preserved. See
+# docs/spec.md section 39 on the dependency policy.
+dependencies = []
 
 [project.optional-dependencies]
 test = [

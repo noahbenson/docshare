@@ -204,3 +204,39 @@ the two objects would reparse every time instead of hitting the cache.
 
 A fix would require a composite key, which a `WeakKeyDictionary` cannot hold
 directly. Revisit only if the pattern turns out to be common.
+
+
+## 10. `dropparams` and `dropreturns` name opposite sides
+
+*Raised in phase 6. Specification sections 17 and 24.*
+
+Section 17 says `dropparams` excludes *target* parameters from inheritance:
+"do not supply inherited documentation for `foo`". Section 24 says
+`dropreturns` specifies *source* return items that should not be inherited,
+and its example confirms it: dropping `(0, 2)` from a source with four
+returns inherits source returns 1 and 3.
+
+These are opposite directions, and the implementation follows each literally:
+a name-identified section drops target identities, an index-identified
+section drops source identities. For names the two coincide unless `parammap`
+is also in play, and for indices only the source side is meaningful, so the
+inconsistency is invisible in every ordinary case.
+
+It does surface when `parammap` and `dropparams` are combined: dropping the
+target name is what excludes the parameter, not the source name it maps from.
+Worth deciding deliberately when the specification is next revised.
+
+
+## 11. An integer bound to a name-identified section is ignored
+
+*Raised in phase 6. Specification section 16.*
+
+A source may be bound to one item with a `(source, key)` pair. In a
+name-identified section the key is a name, and in an index-identified section
+it may be a name or a position. A position given for a name-identified
+section, as in `inheritparams=(foo, (foo, 0))`, matches nothing and is
+silently ignored rather than reported.
+
+Detecting it requires knowing the section kind while normalizing the
+decorator's arguments, which is where it should be caught. Worth doing when
+the decorator's argument validation is revisited.

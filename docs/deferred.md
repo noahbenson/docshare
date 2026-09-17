@@ -116,3 +116,48 @@ only when such a document must be rendered, which is where the requirement
 for an explicit format applies.
 
 Recorded as a deliberate reading of section 4.2 rather than an omission.
+
+
+## 6. An empty section cannot be written in Google format
+
+*Raised in phase 3. Specification section 46.*
+
+A Google section header is only a header when an indented body follows it, so
+a section with no items and no text has no Google spelling. The renderer
+therefore drops such a section when writing Google style, while NumPy style
+keeps it, since a title and its underline stand alone perfectly well.
+
+An empty section carries no documentation, so nothing is lost in practice.
+The alternative, writing a placeholder body, would invent content. Revisit
+only if an empty section turns out to matter.
+
+
+## 7. A return described without a type has no NumPy spelling
+
+*Raised in phase 3. Specification sections 46 and 47.*
+
+Google style permits a return value written as bare prose::
+
+    Returns:
+        The computed result.
+
+This parses as an item with neither a name nor a type, only a description.
+NumPy style has no such form: every entry in a Returns section begins with a
+type or a name. The renderer therefore promotes the first line of the
+description onto the declaration line, so that the NumPy output is valid and
+says the same thing to a reader:
+
+```text
+Returns
+-------
+The computed result.
+```
+
+Parsing that back yields an item whose *type* is `The computed result.`, so
+the conversion is not semantically reversible. Within a single format the
+round trip is exact; only the cross-format conversion shifts the text from
+description to type.
+
+A fix would require either inventing a type such as `object`, which asserts
+something the author did not write, or leaving the description off entirely,
+which loses it. Neither is clearly better than the current behavior.

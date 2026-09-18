@@ -3,6 +3,10 @@ name: publish
 # Publishing uses PyPI Trusted Publishing (OIDC); no API token is stored in the
 # repository. Configure the publisher at https://pypi.org/manage/account/publishing/
 # with workflow name "publish.yml" and environment "pypi".
+#
+# A release runs the whole test workflow first. A version can be yanked from
+# PyPI but never reused, so the check that would have caught the problem has to
+# happen before the upload rather than after it.
 
 on:
   release:
@@ -13,8 +17,14 @@ permissions:
   contents: read
 
 jobs:
+  test:
+    name: tests
+    # The same lint, matrix, and build check that an ordinary push runs.
+    uses: ./.github/workflows/tests.yml
+
   build:
     name: build distributions
+    needs: [test]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,8 +33,21 @@ jobs:
           python-version: '3.12'
       - name: Build sdist and wheel
         run: |
-          python -m pip install --upgrade pip build
+          python -m pip install --upgrade pip build twine
           python -m build
+      - name: Check the distribution metadata
+        run: python -m twine check --strict dist/*
+      - name: Check that the release tag matches the package version
+        if: github.event_name == 'release'
+        run: |
+          python -m pip install -e .
+          version="$(python -c 'import docshare; print(docshare.__version__)')"
+          tag="${GITHUB_REF_NAME#v}"
+          if [ "$version" != "$tag" ]; then
+            echo "::error::tag ${GITHUB_REF_NAME} does not match" \
+                 "docshare.__version__ ${version}"
+            exit 1
+          fi
       - name: Upload distributions
         uses: actions/upload-artifact@v4
         with:

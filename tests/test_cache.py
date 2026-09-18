@@ -7,13 +7,16 @@ import weakref
 import pytest
 
 from docshare import (
+    DocCache,
     DocFormatError,
     Document,
     clear_docinfo,
+    doccache,
     docinfo,
     docparse,
+    docwrap,
 )
-from docshare._cache import _CACHE, cache_key, documentation, set_docinfo
+from docshare._cache import DEFAULT_MAXSIZE, documentation, set_docinfo
 
 PARAMS = 'S.\n\nParameters\n----------\nx : int\n    The x.\n'
 OTHER = 'S.\n\nParameters\n----------\ny : str\n    The y.\n'
@@ -21,9 +24,11 @@ OTHER = 'S.\n\nParameters\n----------\ny : str\n    The y.\n'
 
 @pytest.fixture(autouse=True)
 def _empty_cache():
+    size = doccache.maxsize
     clear_docinfo()
     yield
     clear_docinfo()
+    doccache.maxsize = size
 
 
 def make_function(doc=PARAMS):
@@ -38,8 +43,9 @@ def make_function(doc=PARAMS):
 
 
 def test_docparse_reads_the_objects_documentation():
-    doc = docparse(make_function())
-    assert doc.section('parameters').items[0].names == ('x',)
+    assert docparse(make_function()).section('parameters').items[0].names == (
+        'x',
+    )
 
 
 def test_docparse_of_an_undocumented_object_is_empty():
@@ -56,9 +62,8 @@ def test_docparse_of_a_string_parses_that_string():
 
 
 def test_docparse_never_populates_the_cache():
-    f = make_function()
-    docparse(f)
-    assert len(_CACHE) == 0
+    docparse(make_function())
+    assert len(doccache) == 0
 
 
 def test_docparse_never_consults_the_cache():
@@ -75,36 +80,32 @@ def test_docparse_reflects_a_reassigned_docstring():
 
 
 def test_docparse_honors_an_explicit_format():
-    f = make_function()
-    assert docparse(f, format='numpy').format == 'numpy'
+    assert docparse(make_function(), format='numpy').format == 'numpy'
 
 
 def test_docparse_rejects_a_mismatched_format():
-    f = make_function()
     with pytest.raises(DocFormatError):
-        docparse(f, format='google')
+        docparse(make_function(), format='google')
 
 
 # docinfo ####################################################################
 
 
 def test_docinfo_parses_when_nothing_is_recorded():
-    f = make_function()
-    assert docinfo(f).section('parameters').items[0].names == ('x',)
+    assert docinfo(make_function()).section('parameters').items[0].names == (
+        'x',
+    )
 
 
 def test_docinfo_records_what_it_parsed():
     f = make_function()
-    first = docinfo(f)
-    assert docinfo(f) is first
+    assert docinfo(f) is docinfo(f)
 
 
 def test_docinfo_returns_what_composition_recorded():
-    # Composition records the assembled document, which may document more
-    # than the object's own docstring ever did.
     f = make_function()
     composed = Document(summary='Composed.')
-    set_docinfo(f, composed, text=f.__doc__)
+    set_docinfo(f, composed)
     assert docinfo(f) is composed
 
 
@@ -115,32 +116,41 @@ def test_docinfo_of_an_undocumented_object_is_empty():
     assert docinfo(f).empty
 
 
-def test_docinfo_of_a_string_is_not_cached():
-    assert docinfo(PARAMS).section('parameters').items[0].names == ('x',)
-    assert len(_CACHE) == 0
+def test_every_undocumented_object_shares_one_record():
+    def f():
+        pass
+
+    def g():
+        pass
+
+    assert docinfo(f) is docinfo(g)
 
 
-# Format handling ############################################################
+def test_a_string_is_cached_like_anything_else():
+    assert docinfo(PARAMS) is docinfo(PARAMS)
 
 
-def test_docinfo_format_applies_only_when_parsing_happens():
-    f = make_function()
-    first = docinfo(f, format='numpy')
-    # The recorded document is returned whatever the format says, because
-    # the representation does not depend on the format it was written in.
-    assert docinfo(f, format='google') is first
+# Keyed by the documentation, not by the object ##############################
 
 
-def test_docinfo_format_is_used_when_it_must_parse():
-    f = make_function()
-    with pytest.raises(DocFormatError):
-        docinfo(f, format='google')
+def test_two_objects_documented_alike_share_one_record():
+    # A parsed document depends on nothing but the text it came from.
+    assert docinfo(make_function()) is docinfo(make_function())
+    assert len(doccache) == 1
 
 
-# Fingerprinting #############################################################
+def test_two_objects_documented_differently_do_not():
+    docinfo(make_function(PARAMS))
+    docinfo(make_function(OTHER))
+    assert len(doccache) == 2
 
 
-def test_a_reassigned_docstring_invalidates_the_record():
+def test_the_cache_is_keyed_by_the_docstring():
+    docinfo(make_function())
+    assert list(doccache) == [PARAMS]
+
+
+def test_a_reassigned_docstring_misses_and_is_reparsed():
     f = make_function()
     first = docinfo(f)
     f.__doc__ = OTHER
@@ -149,23 +159,54 @@ def test_a_reassigned_docstring_invalidates_the_record():
     assert second.section('parameters').items[0].names == ('y',)
 
 
-def test_a_docstring_restored_to_its_old_text_reparses_equal():
+def test_a_docstring_restored_to_its_old_text_hits_again():
     f = make_function()
     first = docinfo(f)
     f.__doc__ = OTHER
     docinfo(f)
     f.__doc__ = PARAMS
-    assert docinfo(f) == first
+    assert docinfo(f) is first
 
 
-def test_clearing_a_docstring_yields_an_empty_document():
+def test_the_cache_never_refers_to_the_documented_object():
     f = make_function()
     docinfo(f)
-    f.__doc__ = None
-    assert docinfo(f).empty
+    reference = weakref.ref(f)
+    del f
+    gc.collect()
+    assert reference() is None
+    assert len(doccache) == 1
 
 
-# Object types ###############################################################
+def test_the_cache_does_not_modify_the_documented_object():
+    f = make_function()
+    before = set(vars(f))
+    docinfo(f)
+    assert set(vars(f)) == before
+    assert f.__doc__ == PARAMS
+
+
+# Format handling ############################################################
+
+
+def test_docinfo_format_applies_only_when_parsing_happens():
+    f = make_function()
+    first = docinfo(f, format='numpy')
+    assert docinfo(f, format='google') is first
+
+
+def test_docinfo_format_is_used_when_it_must_parse():
+    with pytest.raises(DocFormatError):
+        docinfo(make_function(), format='google')
+
+
+def test_a_failed_parse_records_nothing():
+    with pytest.raises(DocFormatError):
+        docinfo(make_function(), format='google')
+    assert len(doccache) == 0
+
+
+# Every object type, including the ones that resisted weak reference #########
 
 
 class Example:
@@ -217,133 +258,144 @@ class Example:
         """
 
 
+@pytest.mark.parametrize(
+    'name',
+    ['method', 'static', 'klass', 'prop'],
+)
+def test_every_descriptor_is_cached(name):
+    obj = Example.__dict__[name]
+    assert docinfo(obj) is docinfo(obj)
+
+
 def test_a_class_is_cached():
-    assert docinfo(Example).section('attributes').items[0].names == ('value',)
     assert docinfo(Example) is docinfo(Example)
 
 
-def test_a_plain_function_is_cached():
-    f = make_function()
-    assert docinfo(f) is docinfo(f)
-
-
-def test_a_staticmethod_object_is_cached():
-    obj = Example.__dict__['static']
-    assert docinfo(obj).section('parameters').items[0].names == ('b',)
-    assert docinfo(obj) is docinfo(obj)
-
-
-def test_a_classmethod_object_is_cached():
-    obj = Example.__dict__['klass']
-    assert docinfo(obj).section('parameters').items[0].names == ('c',)
-    assert docinfo(obj) is docinfo(obj)
-
-
-def test_a_property_object_is_cached():
-    obj = Example.__dict__['prop']
-    assert docinfo(obj).section('returns').items[0].type == 'int'
-    assert docinfo(obj) is docinfo(obj)
-
-
 def test_a_bound_method_is_cached_across_separate_accesses():
-    # A new bound method is created on each access, so caching one directly
-    # would never hit; the cache keys on the underlying function.
     instance = Example()
     assert instance.method is not instance.method
     assert docinfo(instance.method) is docinfo(instance.method)
 
 
-def test_a_bound_method_and_its_function_share_a_record():
-    instance = Example()
-    assert docinfo(instance.method) is docinfo(Example.method)
+def test_a_write_only_property_is_cached():
+    # It has no getter to key on, and used not to be cached at all.
+    prop = property(None, lambda self, value: None, doc=PARAMS)
+    assert docinfo(prop) is docinfo(prop)
+    assert docinfo(prop).section('parameters') is not None
 
 
-def test_an_instance_uses_its_class_documentation():
-    assert docinfo(Example()).section('attributes') is not None
+def test_an_object_that_cannot_be_weakly_referenced_is_cached():
+    class Slotted:
+        __slots__ = ()
+        __doc__ = PARAMS
+
+    obj = Slotted()
+    with pytest.raises(TypeError):
+        weakref.ref(obj)
+    assert docinfo(obj) is docinfo(obj)
 
 
-# Cache keys #################################################################
+def test_a_descriptor_with_its_own_docstring_does_not_collide():
+    # A property built over a documented function, with documentation of its
+    # own, used to share that function's cache entry.
+    def getter(self):
+        """The getter's own documentation."""
+
+    prop = property(getter, doc=PARAMS)
+    assert docinfo(prop) is not docinfo(getter)
+    assert docinfo(prop).section('parameters') is not None
+    assert docinfo(getter).section('parameters') is None
 
 
-@pytest.mark.parametrize(
-    'obj',
-    [
-        Example,
-        Example.method,
-        Example.__dict__['static'],
-        Example.__dict__['klass'],
-        Example.__dict__['prop'],
-    ],
-)
-def test_supported_objects_all_have_a_cache_key(obj):
-    assert cache_key(obj) is not None
+# Bound size #################################################################
 
 
-def test_a_descriptor_keys_on_its_underlying_function():
-    assert (
-        cache_key(Example.__dict__['static'])
-        is Example.__dict__['static'].__func__
-    )
-    assert cache_key(Example.__dict__['prop']) is Example.__dict__['prop'].fget
+def test_the_cache_is_bounded():
+    doccache.maxsize = 3
+    for index in range(10):
+        docinfo(f'Document number {index}.')
+    assert len(doccache) == 3
 
 
-def test_a_bound_method_keys_on_its_function():
-    instance = Example()
-    assert cache_key(instance.method) is Example.method
+def test_the_oldest_entry_is_discarded_first():
+    doccache.maxsize = 2
+    docinfo('First.')
+    docinfo('Second.')
+    docinfo('Third.')
+    assert 'First.' not in doccache
+    assert 'Third.' in doccache
 
 
-def test_an_object_that_cannot_be_referenced_has_no_key():
-    assert cache_key(5) is None
-    assert cache_key((1, 2)) is None
+def test_reading_an_entry_makes_it_recent():
+    doccache.maxsize = 2
+    docinfo('First.')
+    docinfo('Second.')
+    docinfo('First.')  # touches it
+    docinfo('Third.')
+    assert 'First.' in doccache
+    assert 'Second.' not in doccache
 
 
-def test_a_string_has_no_key():
-    assert cache_key('some docs') is None
+def test_lowering_the_bound_discards_at_once():
+    for index in range(10):
+        docinfo(f'Document number {index}.')
+    doccache.maxsize = 4
+    assert len(doccache) == 4
 
 
-def test_an_unreferenceable_object_still_parses():
-    # Caching is an optimization; correctness does not depend on it.
-    assert docinfo(5).summary is not None
-    assert len(_CACHE) == 0
-
-
-def test_a_write_only_property_has_no_underlying_getter():
-    prop = property(None, lambda self, value: None, doc='Write only.')
-    assert cache_key(prop) is None
-    assert docinfo(prop).summary == 'Write only.'
-
-
-# Weak references ############################################################
-
-
-def test_the_cache_does_not_keep_an_object_alive():
+def test_a_zero_bound_disables_caching():
+    doccache.maxsize = 0
     f = make_function()
-    docinfo(f)
-    assert len(_CACHE) == 1
-    reference = weakref.ref(f)
-    del f
-    gc.collect()
-    assert reference() is None
-    assert len(_CACHE) == 0
+    assert docinfo(f) is not docinfo(f)
+    assert len(doccache) == 0
 
 
-def test_the_cache_does_not_modify_the_documented_object():
-    f = make_function()
-    before = set(vars(f))
-    docinfo(f)
-    assert set(vars(f)) == before
-    assert f.__doc__ == PARAMS
+def test_a_negative_bound_is_treated_as_zero():
+    doccache.maxsize = -5
+    assert doccache.maxsize == 0
+
+
+def test_the_default_bound_is_generous():
+    assert DEFAULT_MAXSIZE >= 1024
+    assert DocCache().maxsize == DEFAULT_MAXSIZE
+
+
+# The cache as a mapping #####################################################
+
+
+def test_the_cache_is_a_mapping():
+    docinfo(make_function())
+    assert len(doccache) == 1
+    assert PARAMS in doccache
+    assert isinstance(doccache[PARAMS], Document)
+    assert next(iter(doccache.values())) is doccache[PARAMS]
+
+
+def test_an_entry_can_be_removed():
+    docinfo(make_function())
+    del doccache[PARAMS]
+    assert len(doccache) == 0
+
+
+def test_an_entry_can_be_supplied_by_hand():
+    doccache['Invented.'] = Document(summary='Invented.')
+    assert docinfo('Invented.').summary == 'Invented.'
+
+
+def test_the_cache_reports_its_size_and_bound():
+    assert 'maxsize' in repr(doccache)
+    assert 'entries' in repr(doccache)
+
+
+def test_an_independent_cache_can_be_made():
+    other = DocCache(maxsize=1)
+    other['a'] = Document(summary='A.')
+    other['b'] = Document(summary='B.')
+    assert len(other) == 1
+    assert len(doccache) == 0
 
 
 # set_docinfo and clear_docinfo ##############################################
-
-
-def test_set_docinfo_reports_failure_for_an_unkeyable_object():
-    assert set_docinfo(5, Document()) is False
-
-
-def test_set_docinfo_reports_success_for_a_function():
-    assert set_docinfo(make_function(), Document()) is True
 
 
 def test_set_docinfo_defaults_to_the_current_docstring():
@@ -353,29 +405,98 @@ def test_set_docinfo_defaults_to_the_current_docstring():
     assert docinfo(f) is recorded
 
 
+def test_set_docinfo_accepts_an_explicit_text():
+    recorded = Document(summary='Composed.')
+    set_docinfo(None, recorded, text='Some text.')
+    assert docinfo('Some text.') is recorded
+
+
 def test_clear_docinfo_forgets_one_object():
-    f = make_function()
-    g = make_function()
+    f = make_function(PARAMS)
+    g = make_function(OTHER)
     first = docinfo(f)
     docinfo(g)
     clear_docinfo(f)
     assert docinfo(f) is not first
-    assert len(_CACHE) == 2
+    assert len(doccache) == 2
 
 
 def test_clear_docinfo_forgets_everything():
     docinfo(make_function())
     docinfo(Example)
     clear_docinfo()
-    assert len(_CACHE) == 0
-
-
-def test_clear_docinfo_of_an_unkeyable_object_is_harmless():
-    clear_docinfo(5)
+    assert len(doccache) == 0
 
 
 def test_clear_docinfo_of_an_unrecorded_object_is_harmless():
     clear_docinfo(make_function())
+
+
+# Composition records its result #############################################
+
+
+def test_composition_records_the_composed_document():
+    def base(x):
+        """B.
+
+        Parameters
+        ----------
+        x : int
+            The x from base.
+        """
+
+    @docwrap(format='numpy', inheritparams=base)
+    def wrapper(x):
+        """W."""
+
+    recorded = docinfo(wrapper)
+    assert recorded.section('parameters').items[0].names == ('x',)
+    assert doccache[wrapper.__doc__] is recorded
+
+
+def test_a_composed_object_can_itself_be_inherited_from():
+    def base(x):
+        """B.
+
+        Parameters
+        ----------
+        x : int
+            The x from base.
+        """
+
+    @docwrap(format='numpy', inheritparams=base)
+    def middle(x):
+        """M."""
+
+    @docwrap(format='numpy', inheritparams=middle)
+    def leaf(x):
+        """L."""
+
+    assert 'The x from base.' in leaf.__doc__
+
+
+def test_functools_wraps_shares_the_composed_record():
+    import functools
+
+    def base(x):
+        """B.
+
+        Parameters
+        ----------
+        x : int
+            The x from base.
+        """
+
+    @docwrap(format='numpy', inheritparams=base)
+    def target(x):
+        """T."""
+
+    @functools.wraps(target)
+    def wrapper(x):
+        return target(x)
+
+    # The wrapper carries the same docstring, so it carries the same record.
+    assert docinfo(wrapper) is docinfo(target)
 
 
 # documentation() ############################################################

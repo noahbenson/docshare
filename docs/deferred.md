@@ -212,48 +212,49 @@ role used as a type, such as ``:class:`numpy.ndarray```, was split at its
 leading colon and lost its marker. A declaration with nothing before its
 colon is no longer read as separating a name from a type.
 
-## 8. Objects that cannot be weakly referenced are not cached
+## 8. Objects that cannot be weakly referenced --- RESOLVED
 
-*Raised in phase 4. Specification section 9.*
+*Raised in phase 4; resolved after phase 8. Specification section 9.*
 
-The specification allows a fallback for objects that cannot be the target of
-a weak reference. The fallback chosen is to parse such an object's
-documentation afresh on every call rather than to record it, since the
-alternatives --- keying on `id`, which is reused after collection, or holding
-a strong reference, which leaks --- are each worse than losing an
-optimization.
+The cache was keyed by the documented object and held its keys weakly, so an
+object that could not be the target of a weak reference, and wrapped nothing
+that could, was not cached at all. A write-only property was the one real
+case; the three descriptor types the specification requires were handled by
+keying on the function each wraps.
 
-The three descriptor types the specification requires support for, produced
-by `staticmethod`, `classmethod`, and `property`, cannot themselves be weakly
-referenced, but each wraps a function that can be, and the cache keys on that
-function instead. So the uncached case is confined to objects that both
-resist weak reference and wrap nothing, such as a write-only property or an
-`int`. Correctness is unaffected; only the caching is.
+Resolved by keying the cache on the documentation text instead of on the
+object. A parsed document depends on nothing but the text it came from, so
+the text is the honest key. The cache therefore never refers to the objects
+it describes: it cannot keep one alive, and there is no object it cannot
+handle, including a write-only property and an instance whose class defines
+`__slots__` without `__weakref__`.
 
-One consequence: a composed document recorded for such an object cannot be
-recorded at all, so `docinfo` would reparse its rendered docstring. Where
-rendering is lossy, as in case 7 above, the reparsed document could differ
-from the composed one. No object of this kind is a plausible decoration
-target, but the interaction is worth remembering.
+Specification section 9 asked that caching not keep objects alive and that
+the cache not modify them. Both hold more simply than before, and the
+weak-reference machinery --- the key resolution, the descriptor unwrapping,
+the reference test --- is gone.
+
+What the new key costs is that documentation strings cannot themselves be
+weakly referenced, so entries are not reclaimed when their objects die. The
+cache is therefore bounded, discarding the least recently used entry past
+`docshare.doccache.maxsize`; losing one costs a reparse. The cache is public
+as `docshare.doccache`, an ordinary mutable mapping, so it can be inspected,
+cleared, resized, or pre-loaded.
 
 
-## 9. A descriptor and its underlying function share a cache key
+## 9. A descriptor and its underlying function shared a key --- RESOLVED
 
-*Raised in phase 4.*
+*Raised in phase 4; resolved after phase 8.*
 
-Because a `property` keys on its `fget`, a property built with an overridden
-docstring, as in `property(f, doc='Something else.')`, shares a cache key
-with `f` itself while having different documentation. The same holds for a
-`staticmethod` wrapping a function that is also documented in its own right.
+Because a `property` was keyed on its `fget`, a property built with an
+overridden docstring shared a cache entry with the function itself while
+having different documentation. Correctness was preserved by comparing the
+recorded text on every lookup, but the two thrashed against each other.
 
-Correctness is preserved by the fingerprint: an entry is used only while the
-recorded text still matches the object's current `__doc__`, so a lookup that
-collides simply reparses. The only cost is that alternating lookups between
-the two objects would reparse every time instead of hitting the cache.
-
-A fix would require a composite key, which a `WeakKeyDictionary` cannot hold
-directly. Revisit only if the pattern turns out to be common.
-
+Resolved by the same change. Keyed by documentation text, two objects share
+an entry exactly when they are documented identically, which is when sharing
+is correct; a property with its own docstring has its own entry. The separate
+fingerprint comparison is gone, because the key is the fingerprint.
 
 ## 10. `dropparams` and `dropreturns` named opposite sides --- RESOLVED
 

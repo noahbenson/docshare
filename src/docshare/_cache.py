@@ -9,82 +9,111 @@
 `docparse` reads an object's documentation and parses it from scratch every
 time. `docinfo` answers the same question from a package-level cache,
 parsing only when it has nothing recorded. The two are separate because
-composition records its *result* against the composed object: after a
-document has been assembled from inherited sections, `docinfo` reports the
-assembled document, which is what a later object inheriting from it needs.
+composition records its *result*: after a document has been assembled from
+inherited sections, `docinfo` reports the assembled document, which is what a
+later object inheriting from it needs.
 
-The cache never modifies the objects it describes, as required by
-specification section 9. It holds its keys weakly, so caching documentation
-does not keep an object alive.
+The cache is keyed by the documentation text itself rather than by the object
+that carries it. That follows from what a parsed document depends on: nothing
+but the text it was parsed from. Two objects documented identically therefore
+share one entry, correctly, and an object whose docstring is reassigned
+simply misses and is parsed again --- which it would have to be in any case.
 
-Three of the object types the specification requires support for --- the
-objects produced by `staticmethod`, `classmethod`, and `property` --- cannot
-themselves be weakly referenced. Each of them wraps a function that can be,
-so the cache keys on that underlying function. Bound methods need the same
-treatment for the opposite reason: they can be weakly referenced, but a new
-one is created on every attribute access, so a reference to one would die
-immediately.
-
-Every cached entry records the documentation text it was derived from. An
-entry is used only while that text still matches the object's current
-``__doc__``, so a docstring reassigned after the fact is noticed rather than
-silently reported stale.
+Keying this way also means the cache never refers to the objects it
+describes, so it cannot keep one alive and there is no object it cannot
+handle. It does hold the documentation strings, which cannot be weakly
+referenced, so it is bounded: the least recently used entry is discarded when
+it is full. The bound is generous, and losing an entry costs only a reparse.
 """
 
 from __future__ import annotations
 
-import inspect
-import weakref
+from collections import OrderedDict
+from collections.abc import MutableMapping
 
 from ._parser import parse_document
 
-__all__ = ('clear_docinfo', 'docinfo', 'docparse')
+__all__ = ('DocCache', 'clear_docinfo', 'doccache', 'docinfo', 'docparse')
 
 
-#: Parsed documentation, keyed weakly by the object it describes. Each value
-#: is a ``(documentation text, Document)`` pair.
-_CACHE = weakref.WeakKeyDictionary()
+#: The number of documents remembered before the oldest is discarded.
+DEFAULT_MAXSIZE = 2048
 
 
-def _is_weakrefable(obj):
-    """Return whether `obj` can be the target of a weak reference."""
-    try:
-        weakref.ref(obj)
-    except TypeError:
-        return False
-    return True
+class DocCache(MutableMapping):
+    """A bounded cache of parsed documentation, keyed by documentation text.
 
+    The cache behaves as an ordinary mutable mapping from a docstring to the
+    `Document` it parses to, discarding the least recently used entry when it
+    grows past `DocCache.maxsize`.
 
-def cache_key(obj):
-    """Return the object the cache should key `obj` under.
-
-    A descriptor such as a `property` or the object produced by
-    `staticmethod` cannot be weakly referenced, and a bound method is
-    recreated on every attribute access. Each of them wraps a function that
-    is both stable and weakly referenceable, and that function is used as
-    the key.
+    An instance of this class is exposed as `docshare.doccache`. It is public
+    so that it can be inspected, cleared, resized, or pre-loaded, all of which
+    have legitimate uses; it is nonetheless the library's own working state,
+    and putting a document into it that does not correspond to its key will
+    produce documentation that does not correspond to anything.
 
     Parameters
     ----------
-    obj : object
-        The documented object.
-
-    Returns
-    -------
-    object or None
-        The key to cache under, or ``None`` if `obj` can neither be weakly
-        referenced nor resolved to something that can, in which case its
-        documentation is simply parsed afresh each time.
+    maxsize : int, optional
+        The number of entries to keep; the default is `DEFAULT_MAXSIZE`. A
+        value of zero disables caching.
     """
-    if isinstance(obj, str):
-        return None
-    if inspect.ismethod(obj):
-        return obj.__func__
-    for attribute in ('__func__', 'fget'):
-        underlying = getattr(obj, attribute, None)
-        if underlying is not None and _is_weakrefable(underlying):
-            return underlying
-    return obj if _is_weakrefable(obj) else None
+
+    __slots__ = ('_entries', '_maxsize')
+
+    def __init__(self, maxsize=DEFAULT_MAXSIZE):
+        self._entries = OrderedDict()
+        self._maxsize = max(0, int(maxsize))
+
+    @property
+    def maxsize(self):
+        """The number of entries kept before the oldest is discarded (`int`).
+
+        Lowering this discards the least recently used entries at once.
+        """
+        return self._maxsize
+
+    @maxsize.setter
+    def maxsize(self, value):
+        self._maxsize = max(0, int(value))
+        self._evict()
+
+    def _evict(self):
+        """Discard the least recently used entries down to the bound."""
+        while len(self._entries) > self._maxsize:
+            self._entries.popitem(last=False)
+
+    def __getitem__(self, key):
+        document = self._entries[key]
+        self._entries.move_to_end(key)
+        return document
+
+    def __setitem__(self, key, value):
+        if self._maxsize == 0:
+            return
+        self._entries[key] = value
+        self._entries.move_to_end(key)
+        self._evict()
+
+    def __delitem__(self, key):
+        del self._entries[key]
+
+    def __iter__(self):
+        return iter(self._entries)
+
+    def __len__(self):
+        return len(self._entries)
+
+    def __repr__(self):
+        return (
+            f'{type(self).__name__}(maxsize={self._maxsize}) with '
+            f'{len(self._entries)} entries'
+        )
+
+
+#: The documentation `docshare` has parsed, keyed by documentation text.
+doccache = DocCache()
 
 
 def documentation(obj):
@@ -141,8 +170,8 @@ def docparse(obj, *, format=None):
 def docinfo(obj, *, format=None):
     """Return the documentation information associated with an object.
 
-    When nothing is recorded for `obj`, its documentation is parsed with
-    `docparse` and the result is recorded before being returned. When
+    When nothing is recorded for the object's documentation, it is parsed
+    with `docparse` and the result is recorded before being returned. When
     something *is* recorded, it is returned as it stands.
 
     Parameters
@@ -167,15 +196,13 @@ def docinfo(obj, *, format=None):
     DocParseError
         As `docparse`, when parsing is necessary.
     """
-    key = cache_key(obj)
     text = documentation(obj)
-    if key is not None:
-        entry = _CACHE.get(key)
-        if entry is not None and entry[0] == text:
-            return entry[1]
+    try:
+        return doccache[text]
+    except KeyError:
+        pass
     info = parse_document(text, format=format)
-    if key is not None:
-        _CACHE[key] = (text, info)
+    doccache[text] = info
     return info
 
 
@@ -199,15 +226,9 @@ def set_docinfo(obj, info, text=None):
 
     Returns
     -------
-    bool
-        Whether the information could be recorded. This is ``False`` for an
-        object that cannot be weakly referenced and wraps nothing that can.
+    None
     """
-    key = cache_key(obj)
-    if key is None:
-        return False
-    _CACHE[key] = (documentation(obj) if text is None else text, info)
-    return True
+    doccache[documentation(obj) if text is None else text] = info
 
 
 def clear_docinfo(obj=None):
@@ -216,16 +237,14 @@ def clear_docinfo(obj=None):
     Parameters
     ----------
     obj : object, optional
-        The object to forget. The default forgets everything, which is
-        chiefly useful in tests.
+        The object whose documentation should be forgotten. The default
+        forgets everything, which is chiefly useful in tests.
 
     Returns
     -------
     None
     """
     if obj is None:
-        _CACHE.clear()
+        doccache.clear()
         return
-    key = cache_key(obj)
-    if key is not None:
-        _CACHE.pop(key, None)
+    doccache.pop(documentation(obj), None)

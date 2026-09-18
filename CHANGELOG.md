@@ -18,6 +18,12 @@ follows [semantic versioning](https://semver.org/spec/v2.0.0.html).
 * The decorator is named `docwrap`. The package is still `docshare`; the
   decorator wraps one object's documentation around another's, and the two
   no longer shadow each other on import.
+* The documentation cache is keyed by the documentation text rather than by
+  the documented object. Two objects documented identically share one
+  record, a reassigned docstring simply misses, and the cache never refers to
+  the objects it describes, so every object can be cached. It is bounded and
+  public as `docshare.doccache`, an ordinary mutable mapping whose `maxsize`
+  can be changed.
 * A Google-style section now ends where its indentation returns to column
   zero rather than at the next section header. Prose that follows a section
   is kept in place as a section with no title.

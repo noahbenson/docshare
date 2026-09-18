@@ -410,6 +410,15 @@ recorded. For an object `docwrap` has decorated, that record is the
 *composed* document --- everything inheritance assembled, not just what the
 original docstring said --- which is what makes chains of inheritance work.
 
+`docshare.doccache` is that cache: an ordinary mutable mapping from a
+docstring to the `Document` it parses to, bounded by `doccache.maxsize` and
+discarding its least recently used entry when full. It is keyed by the
+documentation rather than by the object, so two objects documented alike
+share one record and a reassigned docstring simply misses. You may inspect,
+clear, resize or pre-load it; it is the library's own working state, so
+putting a document into it that does not match its key will produce
+documentation that matches nothing.
+
 Both accept a docstring directly, which is convenient for experimenting:
 
 ```python

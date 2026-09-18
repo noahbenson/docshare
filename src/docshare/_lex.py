@@ -34,6 +34,7 @@ __all__ = (
     'clean',
     'detect_format',
     'is_declaration',
+    'is_sentence',
     'iter_blocks',
     'lex',
     'split_prose',
@@ -473,3 +474,31 @@ def split_prose(lines):
                 )
         return (_trim_blank(tuple(lines)), ())
     return ((), tuple(lines))
+
+
+def is_sentence(line):
+    """Return whether a line reads as prose rather than as a type.
+
+    In a section whose items are identified by position, a declaration with
+    no name gives the item's *type*, and a type is free text: `array_like of
+    float` is a perfectly good one. So a line cannot be recognized as a type
+    by its shape --- an English phrase is built from the same characters, and
+    ``The computed result`` tokenizes exactly like ``array_like of float``.
+
+    What does separate them is the end of the line. A type is a noun phrase
+    and never closes a sentence, while a description usually does. The test
+    is therefore deliberately narrow: a line that ends a sentence is a
+    description, and anything else keeps its reading as a type, so no
+    documentation changes meaning unless it was punctuated as prose.
+
+    Parameters
+    ----------
+    line : str
+        A declaration line with no name.
+
+    Returns
+    -------
+    bool
+        Whether the line reads as a description rather than a type.
+    """
+    return line.rstrip().endswith(('.', '!', '?'))

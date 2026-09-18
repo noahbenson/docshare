@@ -21,6 +21,12 @@ follows [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+* A return value described without a type, which is how Google style writes
+  one, is no longer read back as a *type* after being written in NumPy style.
+  A declaration that gives no name and ends a sentence is a description, so
+  the conversion is now reversible in both directions.
+* A reStructuredText role used as a type, such as ``:class:`ndarray```, is no
+  longer split at its leading colon.
 * Binding a source to a *position* in a section whose items are identified by
   name, as in `inheritparams=(source, 0)`, is now rejected. It previously
   matched no item and, because a bound source takes no part in the ordinary

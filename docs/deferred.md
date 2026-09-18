@@ -145,50 +145,64 @@ for an explicit format applies.
 Recorded as a deliberate reading of section 4.2 rather than an omission.
 
 
-## 6. An empty section cannot be written in Google format
+## 6. An empty section is not written in Google format --- ACCEPTED
 
-*Raised in phase 3. Specification section 46.*
+*Raised in phase 3; accepted as-is after phase 8. Specification section 46.*
 
 A Google section header is only a header when an indented body follows it, so
 a section with no items and no text has no Google spelling. The renderer
-therefore drops such a section when writing Google style, while NumPy style
-keeps it, since a title and its underline stand alone perfectly well.
+keeps it in NumPy style, where a title and its underline stand alone, and
+omits it in Google style.
 
-An empty section carries no documentation, so nothing is lost in practice.
-The alternative, writing a placeholder body, would invent content. Revisit
-only if an empty section turns out to matter.
+Accepted rather than fixed. An empty section carries no documentation, so
+nothing is lost by omitting it, and it does not reappear on a later
+conversion back. The alternatives are worse: writing a placeholder body
+invents content the author did not write, and refusing the conversion fails a
+document that is otherwise perfectly convertible.
 
 
-## 7. A return described without a type has no NumPy spelling
+## 7. A return described without a type --- RESOLVED
 
-*Raised in phase 3. Specification sections 46 and 47.*
+*Raised in phase 3; resolved after phase 8. Specification sections 46 and
+47.*
 
-Google style permits a return value written as bare prose::
-
-    Returns:
-        The computed result.
-
-This parses as an item with neither a name nor a type, only a description.
-NumPy style has no such form: every entry in a Returns section begins with a
-type or a name. The renderer therefore promotes the first line of the
-description onto the declaration line, so that the NumPy output is valid and
-says the same thing to a reader:
+Google style permits a return value written as bare prose:
 
 ```text
-Returns
--------
-The computed result.
+Returns:
+    The computed result.
 ```
 
-Parsing that back yields an item whose *type* is `The computed result.`, so
-the conversion is not semantically reversible. Within a single format the
-round trip is exact; only the cross-format conversion shifts the text from
-description to type.
+That parses as an item with neither a name nor a type, only a description.
+NumPy style has no such form, so the renderer puts the description on the
+declaration line, where a type would normally go. Reading it back then made
+the text the item's *type*, and the conversion was one-way. Converting on to
+Google again produced `The computed result.:`, since a type with no
+description is written that way.
 
-A fix would require either inventing a type such as `object`, which asserts
-something the author did not write, or leaving the description off entirely,
-which loses it. Neither is clearly better than the current behavior.
+Resolved by recognizing, when reading a declaration that gives no name, that
+a type never closes a sentence. A line ending in a full stop, question mark,
+or exclamation mark is a description; anything else keeps its reading as a
+type.
 
+A lexical test was tried first and rejected. Whether a line *looks like* a
+type expression cannot be decided by its shape, because English words are
+valid Python identifiers: `The computed result` tokenizes exactly like
+`array_like of float`. That test classified every prose example as a type and
+also rejected real types such as `Sequence[int]`. Sentence-ending punctuation
+separates every case correctly in both directions.
+
+The rule is deliberately narrow, so a declaration that is not punctuated as
+prose keeps the meaning it always had, and every type in the test corpus ---
+`float`, `int, optional`, `list of str`, `array_like of float, shape (n,)`,
+`{'a', 'b'}`, `Sequence[int]`, `:class:`numpy.ndarray`` --- is untouched. The
+conversion is now an identity in both directions, for single- and multi-line
+descriptions alike.
+
+Writing the tests for this also uncovered an unrelated defect: a
+reStructuredText role used as a type, such as ``:class:`numpy.ndarray```, was
+split at its leading colon and lost its marker. A declaration with nothing
+before the colon is no longer read as separating a name from a type.
 
 ## 8. Objects that cannot be weakly referenced are not cached
 

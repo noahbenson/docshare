@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import re
 
-from ._lex import iter_blocks, split_prose
+from ._lex import is_sentence, iter_blocks, split_prose
 from ._model import Item
 from ._sections import IDENTITY_NAME
 
@@ -89,6 +89,11 @@ def parse_items(body, kind):
 def _parse_item(header, description, kind):
     """Build a single `Item` from a declaration line and its description."""
     match = _DECLARATION.match(header)
+    if match is not None and not match.group('names').strip():
+        # Nothing precedes the colon, so it is not separating a name from a
+        # type. A reStructuredText role such as ``:class:`ndarray``` opens
+        # this way, and splitting it there would eat its leading marker.
+        match = None
     if match is None:
         # No colon: the declaration is bare. In a section whose items are
         # identified by name, such as Parameters, a bare declaration names
@@ -98,6 +103,15 @@ def _parse_item(header, description, kind):
                 names=split_names(header),
                 type=None,
                 description=description,
+            )
+        if is_sentence(header):
+            # A type never closes a sentence. This is how Google style
+            # writes a return value that has a description but no type, and
+            # reading it as a type is what made that conversion one-way.
+            return Item(
+                names=(),
+                type=None,
+                description=(header, *description),
             )
         return Item(names=(), type=header, description=description)
     names = split_names(match.group('names'))

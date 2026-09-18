@@ -319,11 +319,113 @@ def test_a_bare_google_returns_item_round_trips_within_google():
     assert semantics(again) == semantics(doc)
 
 
-def test_a_bare_google_returns_item_becomes_a_type_in_numpy():
-    # NumPy has no way to write a return with a description but no type, so
-    # the description becomes the declaration line; see docs/deferred.md.
+def test_a_bare_google_returns_item_survives_conversion_to_numpy():
+    # The description goes on the declaration line, since NumPy has nowhere
+    # else to put it, and is read back as a description because a type never
+    # closes a sentence.
     doc = parse_document('S.\n\nReturns:\n    The computed result.\n')
     converted = parse_document(render_document(doc, format='numpy'))
     item = converted.section('returns').items[0]
-    assert item.type == 'The computed result.'
-    assert item.description == ()
+    assert item.type is None
+    assert item.description == ('The computed result.',)
+
+
+def test_an_untyped_return_converts_back_and_forth_unchanged():
+    google = 'S.\n\nReturns:\n    The computed result.\n'
+    as_numpy = render_document(parse_document(google), format='numpy')
+    back = render_document(parse_document(as_numpy), format='google')
+    assert back == google.rstrip()
+
+
+# Types and descriptions in positional sections (deferred items 6 and 7) #####
+
+
+@pytest.mark.parametrize(
+    'declaration',
+    [
+        'float',
+        'int, optional',
+        'list of str',
+        'array_like of float, shape (n,)',
+        'tuple of (int, str)',
+        'Sequence[int]',
+        'np.ndarray',
+        "{'a', 'b'}",
+        'float or None',
+        ':class:`numpy.ndarray`',
+    ],
+)
+def test_a_type_declaration_is_still_a_type(declaration):
+    doc = parse_document(
+        f'S.\n\nReturns\n-------\n{declaration}\n    The value.\n'
+    )
+    item = doc.section('returns').items[0]
+    assert item.type == declaration
+    assert item.description == ('The value.',)
+
+
+@pytest.mark.parametrize(
+    'declaration',
+    [
+        'The computed result.',
+        'Whether the operation succeeded.',
+        'A list of the values found.',
+        'True if successful.',
+        'Did it work?',
+    ],
+)
+def test_a_sentence_declaration_is_a_description(declaration):
+    doc = parse_document(f'S.\n\nReturns\n-------\n{declaration}\n')
+    item = doc.section('returns').items[0]
+    assert item.type is None
+    assert item.description == (declaration,)
+
+
+def test_the_sentence_rule_applies_to_raises_too():
+    doc = parse_document('S.\n\nRaises\n------\nIf the input is bad.\n')
+    assert doc.section('raises').items[0].type is None
+
+
+def test_a_raises_type_is_unaffected():
+    doc = parse_document('S.\n\nRaises\n------\nValueError\n    If bad.\n')
+    assert doc.section('raises').items[0].type == 'ValueError'
+
+
+def test_the_sentence_rule_does_not_apply_to_named_sections():
+    # There a bare line is a name list, which the prose rule already covers.
+    doc = parse_document('S.\n\nParameters\n----------\nx\n    The x.\n')
+    assert doc.section('parameters').items[0].names == ('x',)
+
+
+def test_a_multiline_untyped_return_round_trips_across_formats():
+    google = (
+        'S.\n\nReturns:\n    The computed result.\n    With more detail.\n'
+    )
+    as_numpy = render_document(parse_document(google), format='numpy')
+    back = render_document(parse_document(as_numpy), format='google')
+    assert back == google.rstrip()
+
+
+# An empty section (deferred item 6) #########################################
+
+
+def test_an_empty_section_is_kept_in_numpy():
+    text = 'S.\n\nNotes\n-----\n\nReturns\n-------\nint\n    The result.'
+    doc = parse_document(text)
+    assert doc.section('notes') is not None
+    assert render_document(doc) == text
+
+
+def test_an_empty_section_is_dropped_when_written_as_google():
+    # A Google header is only a header when an indented body follows it, so
+    # a section with no content has no Google spelling; see docs/deferred.md.
+    doc = parse_document('S.\n\nNotes\n-----\n\nReturns\n-------\nint\n')
+    out = render_document(doc, format='google')
+    assert 'Notes' not in out
+    assert 'Returns:' in out
+
+
+def test_dropping_an_empty_section_loses_no_documentation():
+    doc = parse_document('S.\n\nNotes\n-----\n\nReturns\n-------\nint\n')
+    assert doc.section('notes').text == ()
+    assert doc.section('notes').items == ()

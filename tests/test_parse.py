@@ -284,3 +284,31 @@ def test_a_later_unparseable_google_item_is_an_error():
     text = 'S.\n\nArgs:\n    x (int): The x.\n    nonsense here\n'
     with pytest.raises(DocParseError, match='nonsense here'):
         parse_document(text)
+
+
+# reStructuredText roles as types ############################################
+
+@pytest.mark.parametrize(
+    'declaration',
+    [':class:`numpy.ndarray`', ':obj:`int`', ':py:class:`Foo`'],
+)
+def test_a_role_is_not_split_at_its_leading_colon(declaration):
+    # Nothing precedes the colon, so it is not separating a name from a type.
+    doc = parse_document(
+        f'S.\n\nReturns\n-------\n{declaration}\n    The value.\n'
+    )
+    assert doc.section('returns').items[0].type == declaration
+
+
+def test_a_role_survives_a_round_trip():
+    from docshare._render import render_document
+
+    text = 'S.\n\nReturns\n-------\n:class:`ndarray`\n    The value.'
+    assert render_document(parse_document(text)) == text
+
+
+def test_a_named_declaration_is_still_split():
+    doc = parse_document('S.\n\nParameters\n----------\nx : int\n    X.\n')
+    item = doc.section('parameters').items[0]
+    assert item.names == ('x',)
+    assert item.type == 'int'

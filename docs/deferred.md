@@ -280,7 +280,7 @@ source-driven section offers `ignore<short>` and no `drop<short>`. Using the
 wrong one is an error that names the right one and says why:
 
 ```text
-docshare() got an unexpected argument 'dropreturns'; use ignorereturns=
+docwrap() got an unexpected argument 'dropreturns'; use ignorereturns=
 instead. The Returns section is driven by its sources, which decide what
 items exist, so an exclusion names one of the source's items. Excluding one
 of the target's would do nothing, since the target's own documentation is

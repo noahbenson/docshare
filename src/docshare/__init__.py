@@ -15,7 +15,7 @@ parse and cache the semantic representation of an object's documentation.
 """
 
 from ._cache import clear_docinfo, docinfo, docparse
-from ._decorator import docshare
+from ._decorator import docwrap
 from ._exceptions import (
     DocFormatError,
     DocInheritanceError,
@@ -46,6 +46,6 @@ __all__ = (
     'clear_docinfo',
     'docinfo',
     'docparse',
-    'docshare',
+    'docwrap',
     'section_kind',
 )

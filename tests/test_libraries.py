@@ -24,7 +24,7 @@ from docshare import (
     DocShareError,
     clear_docinfo,
     docparse,
-    docshare,
+    docwrap,
     section_kind,
 )
 from docshare._render import render_document
@@ -141,7 +141,7 @@ def test_the_numpy_survey_is_substantial():
 
 
 def test_a_wrapper_inherits_numpy_parameter_documentation():
-    @docshare(format='numpy', inheritparams=numpy.sum, extraparam='axis')
+    @docwrap(format='numpy', inheritparams=numpy.sum, extraparam='axis')
     def total(a, axis=None):
         """Sum an array, but ours.
 
@@ -158,7 +158,7 @@ def test_a_wrapper_inherits_numpy_parameter_documentation():
 
 
 def test_a_wrapper_keeps_its_own_documentation():
-    @docshare(format='numpy', inheritparams=numpy.sum)
+    @docwrap(format='numpy', inheritparams=numpy.sum)
     def total(a):
         """Ours.
 
@@ -173,7 +173,7 @@ def test_a_wrapper_keeps_its_own_documentation():
 
 
 def test_only_parameters_the_wrapper_has_are_inherited():
-    @docshare(format='numpy', inheritparams=numpy.linspace)
+    @docwrap(format='numpy', inheritparams=numpy.linspace)
     def line(start, stop):
         """Ours."""
 
@@ -189,7 +189,7 @@ def test_only_parameters_the_wrapper_has_are_inherited():
 def test_a_renamed_group_inherits_whole_and_stays_grouped():
     # numpy.clip documents a_min and a_max in one grouped declaration, so
     # renaming both keeps the group intact rather than splitting it.
-    @docshare(
+    @docwrap(
         format='numpy',
         inheritparams=numpy.clip,
         parammap={'lower': 'a_min', 'upper': 'a_max'},
@@ -209,7 +209,7 @@ def test_renaming_only_part_of_a_real_group_is_refused():
 
     with pytest.raises(DocInheritanceError, match='whole or not at all'):
 
-        @docshare(
+        @docwrap(
             format='numpy',
             inheritparams=numpy.clip,
             parammap={'lower': 'a_min'},
@@ -219,7 +219,7 @@ def test_renaming_only_part_of_a_real_group_is_refused():
 
 
 def test_a_section_can_be_inherited_whole():
-    @docshare(format='numpy', inheritnotes=numpy.mean)
+    @docwrap(format='numpy', inheritnotes=numpy.mean)
     def average(a):
         """Ours."""
 
@@ -228,7 +228,7 @@ def test_a_section_can_be_inherited_whole():
 
 
 def test_several_numpy_sources_resolve_right_to_left():
-    @docshare(format='numpy', inheritparams=(numpy.sum, numpy.mean))
+    @docwrap(format='numpy', inheritparams=(numpy.sum, numpy.mean))
     def statistic(a):
         """Ours."""
 
@@ -239,7 +239,7 @@ def test_several_numpy_sources_resolve_right_to_left():
 
 
 def test_a_wrapper_inherits_google_parameter_documentation():
-    @docshare(format='google', inheritparams=absl_logging.log_every_n)
+    @docwrap(format='google', inheritparams=absl_logging.log_every_n)
     def every(level, msg, n):
         """Ours."""
 
@@ -271,7 +271,7 @@ def test_absl_flag_trailing_prose_is_preserved():
 
 
 def test_a_wrapper_inherits_google_attributes():
-    @docshare(
+    @docwrap(
         format='google',
         inheritattributes=absl_flags.Flag,
         ignoreattributes='validators',
@@ -287,7 +287,7 @@ def test_a_wrapper_inherits_google_attributes():
 
 
 def test_a_google_wrapper_inherits_from_a_numpy_source():
-    @docshare(inheritparams=numpy.sum, extraparam='axis')
+    @docwrap(inheritparams=numpy.sum, extraparam='axis')
     def total(a, axis=None):
         """Ours.
 
@@ -303,7 +303,7 @@ def test_a_google_wrapper_inherits_from_a_numpy_source():
 
 
 def test_a_numpy_wrapper_inherits_from_a_google_source():
-    @docshare(inheritparams=absl_logging.log_every_n)
+    @docwrap(inheritparams=absl_logging.log_every_n)
     def every(level, msg, n):
         """Ours.
 

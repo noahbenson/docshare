@@ -9,7 +9,7 @@ guess, and only possible where items are named.
 
 import pytest
 
-from docshare import DocParseError, clear_docinfo, docparse, docshare
+from docshare import DocParseError, clear_docinfo, docparse, docwrap
 from docshare._lex import is_declaration, split_prose
 from docshare._render import render_document
 
@@ -237,7 +237,7 @@ def source(x, y):
 
 
 def test_the_targets_own_section_prose_survives_composition():
-    @docshare(format='numpy', inheritparams=source)
+    @docwrap(format='numpy', inheritparams=source)
     def target(x, y):
         """T.
 
@@ -255,7 +255,7 @@ def test_the_targets_own_section_prose_survives_composition():
 
 def test_section_prose_is_not_inherited():
     # Prose describes the source's parameters, not the target's.
-    @docshare(format='numpy', inheritparams=source)
+    @docwrap(format='numpy', inheritparams=source)
     def target(x, y):
         """T."""
 
@@ -264,7 +264,7 @@ def test_section_prose_is_not_inherited():
 
 
 def test_prose_stays_ahead_of_inherited_items():
-    @docshare(format='numpy', inheritparams=source)
+    @docwrap(format='numpy', inheritparams=source)
     def target(x, y):
         """T.
 
@@ -290,7 +290,7 @@ def test_prose_does_not_excuse_a_malformed_google_declaration():
 
 def test_phantom_parameters_no_longer_come_from_prose():
     # This used to report a parameter named after the sentence.
-    @docshare(format='numpy')
+    @docwrap(format='numpy')
     def target(x):
         """T.
 

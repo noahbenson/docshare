@@ -77,7 +77,7 @@ def test_every_documented_exception_exists(name):
     assert issubclass(getattr(docshare, name), docshare.DocShareError)
 
 
-@pytest.mark.parametrize('name', ['docshare', 'docparse', 'docinfo'])
+@pytest.mark.parametrize('name', ['docwrap', 'docparse', 'docinfo'])
 def test_the_documented_public_api_exists(name):
     assert name in INLINE_CODE
     assert hasattr(docshare, name)

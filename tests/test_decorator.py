@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Tests for the docshare decorator."""
+"""Tests for the docwrap decorator."""
 
 import functools
 import pydoc
@@ -14,7 +14,7 @@ from docshare import (
     DocSignatureError,
     clear_docinfo,
     docinfo,
-    docshare,
+    docwrap,
 )
 from docshare._decorator import SECTION_ARGUMENTS
 
@@ -60,7 +60,7 @@ def source(foo, bar=1):
 
 
 def test_the_readme_example():
-    @docshare(format='numpy')
+    @docwrap(format='numpy')
     def quuxatize(foo, bar=1):
         """A function that quuxizes the arguments `foo` and `bar`.
 
@@ -77,7 +77,7 @@ def test_the_readme_example():
             The quux result.
         """
 
-    @docshare(format='numpy', inheritparams=quuxatize)
+    @docwrap(format='numpy', inheritparams=quuxatize)
     def logquuxatize(foo, bar=1, base=None):
         """Returns the log of the quux of arguments `foo` and `bar`.
 
@@ -117,7 +117,7 @@ def test_the_readme_example():
 
 
 def test_the_decorator_may_be_used_bare():
-    @docshare
+    @docwrap
     def f(x):
         """F.
 
@@ -135,7 +135,7 @@ def test_the_decorator_may_be_called_directly():
     def f(foo, bar=1):
         """F."""
 
-    assert docshare(f, format='numpy', inheritparams=source) is f
+    assert docwrap(f, format='numpy', inheritparams=source) is f
     assert 'The foo parameter.' in f.__doc__
 
 
@@ -143,7 +143,7 @@ def test_the_decorator_returns_the_same_object():
     def f(x):
         """F."""
 
-    assert docshare(format='numpy')(f) is f
+    assert docwrap(format='numpy')(f) is f
 
 
 # Section 61.10: composition happens once ####################################
@@ -162,7 +162,7 @@ def test_a_docstring_is_left_alone_when_nothing_is_inherited():
         pass
 
     f.__doc__ = original
-    docshare(f)
+    docwrap(f)
     assert f.__doc__ == original
 
 
@@ -176,7 +176,7 @@ def test_the_parsed_document_is_recorded_even_without_inheritance():
             The x.
         """
 
-    docshare(f)
+    docwrap(f)
     assert docinfo(f) is docinfo(f)
     assert docinfo(f).section('parameters') is not None
 
@@ -185,7 +185,7 @@ def test_the_composed_document_is_recorded():
     def f(foo, bar=1):
         """F."""
 
-    docshare(f, format='numpy', inheritparams=source)
+    docwrap(f, format='numpy', inheritparams=source)
     recorded = docinfo(f)
     assert [i.names for i in recorded.section('parameters').items] == [
         ('foo',),
@@ -197,12 +197,12 @@ def test_a_composed_object_can_itself_be_inherited_from():
     def middle(foo, bar=1):
         """M."""
 
-    docshare(middle, format='numpy', inheritparams=source)
+    docwrap(middle, format='numpy', inheritparams=source)
 
     def leaf(foo, bar=1):
         """L."""
 
-    docshare(leaf, format='numpy', inheritparams=middle)
+    docwrap(leaf, format='numpy', inheritparams=middle)
     assert 'The foo parameter.' in leaf.__doc__
 
 
@@ -219,7 +219,7 @@ def test_a_later_change_to_a_source_does_not_propagate():
     def target(x):
         """T."""
 
-    docshare(target, format='numpy', inheritparams=upstream)
+    docwrap(target, format='numpy', inheritparams=upstream)
     assert 'Original.' in target.__doc__
     upstream.__doc__ = 'U.\n\nParameters\n----------\nx : int\n    Changed.\n'
     assert 'Original.' in target.__doc__
@@ -267,37 +267,37 @@ class Example:
         The value.
     """
 
-    @docshare(format='numpy', inheritparams=base_method)
+    @docwrap(format='numpy', inheritparams=base_method)
     def method(self, x):
         pass
 
-    @docshare(format='numpy', inheritparams=base_static)
+    @docwrap(format='numpy', inheritparams=base_static)
     @staticmethod
     def static_above(p):
         pass
 
     @staticmethod
-    @docshare(format='numpy', inheritparams=base_static)
+    @docwrap(format='numpy', inheritparams=base_static)
     def static_below(p):
         pass
 
-    @docshare(format='numpy', inheritparams=base_static)
+    @docwrap(format='numpy', inheritparams=base_static)
     @classmethod
     def class_above(cls, p):
         pass
 
     @classmethod
-    @docshare(format='numpy', inheritparams=base_static)
+    @docwrap(format='numpy', inheritparams=base_static)
     def class_below(cls, p):
         pass
 
-    @docshare(format='numpy', inheritreturns=base_property)
+    @docwrap(format='numpy', inheritreturns=base_property)
     @property
     def property_above(self):
         pass
 
     @property
-    @docshare(format='numpy', inheritreturns=base_property)
+    @docwrap(format='numpy', inheritreturns=base_property)
     def property_below(self):
         pass
 
@@ -350,7 +350,7 @@ def test_a_class_can_be_decorated():
             The value from base.
         """
 
-    @docshare(format='numpy', inheritattributes=base)
+    @docwrap(format='numpy', inheritattributes=base)
     class Target:
         """T."""
 
@@ -361,7 +361,7 @@ def test_functools_wraps_carries_the_composed_documentation():
     def target(foo, bar=1):
         """T."""
 
-    docshare(target, format='numpy', inheritparams=source)
+    docwrap(target, format='numpy', inheritparams=source)
 
     @functools.wraps(target)
     def wrapper(*args, **kwargs):
@@ -377,7 +377,7 @@ def test_help_shows_the_composed_documentation():
     def f(foo, bar=1):
         """F."""
 
-    docshare(f, format='numpy', inheritparams=source)
+    docwrap(f, format='numpy', inheritparams=source)
     rendered = pydoc.render_doc(f)
     assert 'The foo parameter.' in rendered
 
@@ -386,7 +386,7 @@ def test_the_docstring_is_a_plain_string():
     def f(foo, bar=1):
         """F."""
 
-    docshare(f, format='numpy', inheritparams=source)
+    docwrap(f, format='numpy', inheritparams=source)
     assert type(f.__doc__) is str
 
 
@@ -397,7 +397,7 @@ def test_the_generalized_inherit_argument():
     def target(foo, bar=1):
         """T."""
 
-    docshare(target, format='numpy', inherit={'Parameters': source})
+    docwrap(target, format='numpy', inherit={'Parameters': source})
     assert 'The foo parameter.' in target.__doc__
 
 
@@ -405,7 +405,7 @@ def test_the_generalized_inherit_accepts_a_kind_name():
     def target(foo, bar=1):
         """T."""
 
-    docshare(target, format='numpy', inherit={'parameters': source})
+    docwrap(target, format='numpy', inherit={'parameters': source})
     assert 'The foo parameter.' in target.__doc__
 
 
@@ -414,7 +414,7 @@ def test_the_generalized_inherit_rejects_an_unknown_section():
         """T."""
 
     with pytest.raises(DocShareError, match='inheritother'):
-        docshare(target, format='numpy', inherit={'Efferents': source})
+        docwrap(target, format='numpy', inherit={'Efferents': source})
 
 
 def test_naming_a_section_twice_is_an_error():
@@ -422,7 +422,7 @@ def test_naming_a_section_twice_is_an_error():
         """T."""
 
     with pytest.raises(DocShareError, match='one place or the other'):
-        docshare(
+        docwrap(
             target,
             format='numpy',
             inherit={'Parameters': source},
@@ -434,7 +434,7 @@ def test_inheritall_takes_every_recognized_section():
     def target(foo, bar=1):
         """T."""
 
-    docshare(target, format='numpy', inheritall=source)
+    docwrap(target, format='numpy', inheritall=source)
     assert 'The foo parameter.' in target.__doc__
     assert 'The quux.' in target.__doc__
     assert 'If bad.' in target.__doc__
@@ -445,7 +445,7 @@ def test_inheritall_leaves_unrecognized_sections_alone():
     def target(foo, bar=1):
         """T."""
 
-    docshare(target, format='numpy', inheritall=source)
+    docwrap(target, format='numpy', inheritall=source)
     assert 'Efferents' not in target.__doc__
 
 
@@ -453,7 +453,7 @@ def test_inheritall_with_inheritother_takes_unrecognized_sections_too():
     def target(foo, bar=1):
         """T."""
 
-    docshare(target, format='numpy', inheritall=source, inheritother=True)
+    docwrap(target, format='numpy', inheritall=source, inheritother=True)
     assert 'Downstream connections.' in target.__doc__
 
 
@@ -461,7 +461,7 @@ def test_inheritother_takes_a_named_section():
     def target(foo, bar=1):
         """T."""
 
-    docshare(target, format='numpy', inheritother=[(source, 'Efferents')])
+    docwrap(target, format='numpy', inheritother=[(source, 'Efferents')])
     assert 'Downstream connections.' in target.__doc__
     assert 'The foo parameter.' not in target.__doc__
 
@@ -471,7 +471,7 @@ def test_inheritother_rejects_a_bare_source():
         """T."""
 
     with pytest.raises(DocShareError, match='section name'):
-        docshare(target, format='numpy', inheritother=[source])
+        docwrap(target, format='numpy', inheritother=[source])
 
 
 # Arguments ##################################################################
@@ -553,7 +553,7 @@ def test_ignoreparams_is_rejected_and_names_dropparams():
         """F."""
 
     with pytest.raises(DocShareError, match='use dropparams='):
-        docshare(f, ignoreparams='x')
+        docwrap(f, ignoreparams='x')
 
 
 def test_dropreturns_is_rejected_and_names_ignorereturns():
@@ -561,7 +561,7 @@ def test_dropreturns_is_rejected_and_names_ignorereturns():
         """F."""
 
     with pytest.raises(DocShareError, match='use ignorereturns='):
-        docshare(f, dropreturns=0)
+        docwrap(f, dropreturns=0)
 
 
 def test_the_wrong_prefix_error_explains_which_side_is_meant():
@@ -569,10 +569,10 @@ def test_the_wrong_prefix_error_explains_which_side_is_meant():
         """F."""
 
     with pytest.raises(DocShareError) as info:
-        docshare(f, ignoreparams='x')
+        docwrap(f, ignoreparams='x')
     assert 'ordered by the signature' in str(info.value)
     with pytest.raises(DocShareError) as info:
-        docshare(f, dropattributes='x')
+        docwrap(f, dropattributes='x')
     assert 'driven by its sources' in str(info.value)
 
 
@@ -596,7 +596,7 @@ def test_every_wrong_prefix_names_its_counterpart(wrong, right):
         """F."""
 
     with pytest.raises(DocShareError, match=f'use {right}='):
-        docshare(f, **{wrong: 'x'})
+        docwrap(f, **{wrong: 'x'})
 
 
 def test_a_prefix_mistake_on_a_prose_section_falls_back_to_resemblance():
@@ -606,7 +606,7 @@ def test_a_prefix_mistake_on_a_prose_section_falls_back_to_resemblance():
         """F."""
 
     with pytest.raises(DocShareError, match='did you mean'):
-        docshare(f, dropnotes='x')
+        docwrap(f, dropnotes='x')
 
 
 # Every parameter section is ordered by the signature ######################
@@ -624,7 +624,7 @@ def test_other_parameters_cannot_inherit_a_parameter_the_target_lacks():
             The y.
         """
 
-    @docshare(format='numpy', inheritotherparams=base)
+    @docwrap(format='numpy', inheritotherparams=base)
     def f(x, y):
         """F."""
 
@@ -640,7 +640,7 @@ def test_keyword_args_cannot_inherit_a_parameter_the_target_lacks():
             ghost (int): Not a parameter of the target.
         """
 
-    @docshare(format='google', inheritkeywordargs=base)
+    @docwrap(format='google', inheritkeywordargs=base)
     def f(**kwargs):
         """F."""
 
@@ -659,7 +659,7 @@ def test_other_parameters_follow_the_signature_order():
             The x.
         """
 
-    @docshare(format='numpy', inheritotherparams=base)
+    @docwrap(format='numpy', inheritotherparams=base)
     def f(x, y):
         """F."""
 
@@ -676,7 +676,7 @@ def test_extraparam_admits_an_inherited_other_parameter():
             The null.
         """
 
-    @docshare(format='numpy', inheritotherparams=base, extraparam='null')
+    @docwrap(format='numpy', inheritotherparams=base, extraparam='null')
     def f(**kwargs):
         """F."""
 
@@ -727,7 +727,7 @@ def test_attributemap_renames_an_inherited_attribute():
             The cache.
         """
 
-    @docshare(
+    @docwrap(
         format='numpy', inheritattributes=base, attributemap={'store': 'cache'}
     )
     class Target:
@@ -749,7 +749,7 @@ def test_attributemap_leaves_unmapped_attributes_alone():
             The other.
         """
 
-    @docshare(
+    @docwrap(
         format='numpy', inheritattributes=base, attributemap={'store': 'cache'}
     )
     class Target:
@@ -771,7 +771,7 @@ def test_ignoreattributes_names_a_source_attribute():
             The other.
         """
 
-    @docshare(format='numpy', inheritattributes=base, ignoreattributes='cache')
+    @docwrap(format='numpy', inheritattributes=base, ignoreattributes='cache')
     class Target:
         """T."""
 
@@ -790,7 +790,7 @@ def test_an_unknown_argument_is_rejected():
         """F."""
 
     with pytest.raises(DocShareError, match='unexpected argument'):
-        docshare(f, inheritnothing=source)
+        docwrap(f, inheritnothing=source)
 
 
 def test_an_unknown_argument_suggests_a_close_match():
@@ -798,7 +798,7 @@ def test_an_unknown_argument_suggests_a_close_match():
         """F."""
 
     with pytest.raises(DocShareError, match='inheritparams'):
-        docshare(f, inheritparam=source)
+        docwrap(f, inheritparam=source)
 
 
 def test_a_misspelled_argument_is_caught_before_any_work():
@@ -809,7 +809,7 @@ def test_a_misspelled_argument_is_caught_before_any_work():
 
     f.__doc__ = original
     with pytest.raises(DocShareError):
-        docshare(f, dropparam='x')
+        docwrap(f, dropparam='x')
     assert f.__doc__ == original
 
 
@@ -819,7 +819,7 @@ def test_a_misspelled_argument_is_caught_before_any_work():
 def test_signature_validation_runs_at_decoration_time():
     with pytest.raises(DocSignatureError, match="'scal'"):
 
-        @docshare(format='numpy')
+        @docwrap(format='numpy')
         def f(scale=1):
             """F.
 
@@ -831,7 +831,7 @@ def test_signature_validation_runs_at_decoration_time():
 
 
 def test_extraparam_is_accepted():
-    @docshare(format='numpy', extraparam='null')
+    @docwrap(format='numpy', extraparam='null')
     def f(**kwargs):
         """F.
 
@@ -854,7 +854,7 @@ def test_extraparam_participates_in_inheritance():
             The null from base.
         """
 
-    @docshare(format='numpy', inheritparams=base, extraparam='null')
+    @docwrap(format='numpy', inheritparams=base, extraparam='null')
     def f(**kwargs):
         """F."""
 
@@ -873,7 +873,7 @@ def test_an_incoherent_inheritance_fails_at_decoration_time():
 
     with pytest.raises(DocInheritanceError):
 
-        @docshare(format='numpy', inheritparams=grouped)
+        @docwrap(format='numpy', inheritparams=grouped)
         def f(x, y, z):
             """F.
 
@@ -892,14 +892,14 @@ def test_an_undocumented_target_requires_a_format_to_write_in():
         pass
 
     with pytest.raises(DocFormatError, match='render='):
-        docshare(f, inheritparams=source)
+        docwrap(f, inheritparams=source)
 
 
 def test_an_undocumented_target_composes_with_an_explicit_format():
     def f(foo, bar=1):
         pass
 
-    docshare(f, format='numpy', inheritparams=source)
+    docwrap(f, format='numpy', inheritparams=source)
     assert f.__doc__.startswith('Parameters')
 
 
@@ -918,7 +918,7 @@ def test_the_format_is_detected_from_the_targets_own_docstring():
             foo (float): The foo from google.
         """
 
-    docshare(f, inheritparams=google_source, extraparam='baz')
+    docwrap(f, inheritparams=google_source, extraparam='baz')
     assert 'foo (float): The foo from google.' in f.__doc__
 
 
@@ -935,7 +935,7 @@ def test_the_format_argument_still_asserts_how_the_docstring_is_written():
         """
 
     with pytest.raises(DocFormatError, match='required to be'):
-        docshare(f, format='google', inheritparams=source)
+        docwrap(f, format='google', inheritparams=source)
 
 
 def test_render_converts_a_document_into_the_other_format():
@@ -948,7 +948,7 @@ def test_render_converts_a_document_into_the_other_format():
             My own bar.
         """
 
-    docshare(f, format='numpy', render='google', inheritparams=source)
+    docwrap(f, format='numpy', render='google', inheritparams=source)
     assert 'Args:' in f.__doc__
     assert 'foo (float): The foo parameter.' in f.__doc__
     assert 'Parameters\n----------' not in f.__doc__
@@ -960,7 +960,7 @@ def test_render_alone_writes_an_undocumented_target():
     def f(foo, bar=1):
         pass
 
-    docshare(f, render='numpy', inheritparams=source)
+    docwrap(f, render='numpy', inheritparams=source)
     assert f.__doc__.startswith('Parameters\n----------')
 
 
@@ -972,7 +972,7 @@ def test_render_defaults_to_the_detected_format():
             bar (float): My own bar.
         """
 
-    docshare(f, inheritparams=source)
+    docwrap(f, inheritparams=source)
     assert 'Args:' in f.__doc__
 
 
@@ -986,7 +986,7 @@ def test_render_defaults_to_an_explicit_format():
             My own bar.
         """
 
-    docshare(f, format='numpy', inheritparams=source)
+    docwrap(f, format='numpy', inheritparams=source)
     assert 'Parameters\n----------' in f.__doc__
 
 
@@ -995,7 +995,7 @@ def test_render_is_rejected_when_unsupported():
         """F."""
 
     with pytest.raises(DocFormatError, match='unsupported'):
-        docshare(f, render='rest', inheritparams=source)
+        docwrap(f, render='rest', inheritparams=source)
 
 
 def test_a_google_target_may_inherit_from_a_numpy_source():
@@ -1008,7 +1008,7 @@ def test_a_google_target_may_inherit_from_a_numpy_source():
             bar (float): My own bar.
         """
 
-    docshare(f, inheritparams=source)
+    docwrap(f, inheritparams=source)
     assert 'Args:' in f.__doc__
     assert 'foo (float): The foo parameter.' in f.__doc__
     assert 'Parameters\n----------' not in f.__doc__
@@ -1031,7 +1031,7 @@ def test_a_numpy_target_may_inherit_from_a_google_source():
             My own bar.
         """
 
-    docshare(f, inheritparams=google_source)
+    docwrap(f, inheritparams=google_source)
     assert 'Parameters\n----------' in f.__doc__
     assert 'foo : float' in f.__doc__
 
@@ -1041,7 +1041,7 @@ def test_an_unwritable_docstring_is_reported():
         __slots__ = ()
 
     with pytest.raises(DocShareError, match='not writable'):
-        docshare(Slotted(), format='numpy', inheritparams=source)
+        docwrap(Slotted(), format='numpy', inheritparams=source)
 
 
 # Per-section arguments through the decorator ################################
@@ -1051,7 +1051,7 @@ def test_dropparams_through_the_decorator():
     def target(foo, bar=1):
         """T."""
 
-    docshare(target, format='numpy', inheritparams=source, dropparams='foo')
+    docwrap(target, format='numpy', inheritparams=source, dropparams='foo')
     assert 'The foo parameter.' not in target.__doc__
     assert 'The bar parameter' in target.__doc__
 
@@ -1065,7 +1065,7 @@ def test_dropparams_accepts_several_names():
         Keeps the document from being empty.
         """
 
-    docshare(
+    docwrap(
         target,
         format='numpy',
         inheritparams=source,
@@ -1079,7 +1079,7 @@ def test_parammap_through_the_decorator():
     def target(inp, bar=1):
         """T."""
 
-    docshare(
+    docwrap(
         target,
         format='numpy',
         inheritparams=source,
@@ -1104,7 +1104,7 @@ def test_ignorereturns_through_the_decorator():
     def target():
         """T."""
 
-    docshare(target, format='numpy', inheritreturns=many, ignorereturns=0)
+    docwrap(target, format='numpy', inheritreturns=many, ignorereturns=0)
     assert 'Second.' in target.__doc__
     assert 'First.' not in target.__doc__
 
@@ -1130,7 +1130,7 @@ def test_returnmap_through_the_decorator():
             Mine.
         """
 
-    docshare(target, format='numpy', inheritreturns=many, returnmap={0: 1})
+    docwrap(target, format='numpy', inheritreturns=many, returnmap={0: 1})
     assert target.__doc__.endswith('float\n    First.\nfloat\n    Mine.')
 
 
@@ -1138,7 +1138,7 @@ def test_raisemap_and_ignoreraises_through_the_decorator():
     def target():
         """T."""
 
-    docshare(
+    docwrap(
         target, format='numpy', inheritraises=source, ignoreraises='ValueError'
     )
     assert 'If bad.' not in target.__doc__
@@ -1157,7 +1157,7 @@ def test_a_source_may_be_bound_to_one_item_at_the_top_level():
     def target(foo, bar=1):
         """T."""
 
-    docshare(
+    docwrap(
         target,
         format='numpy',
         inheritparams=(source, other, (source, 'foo')),
@@ -1170,7 +1170,7 @@ def test_a_lone_binding_is_not_read_as_two_sources():
     def target(foo, bar=1):
         """T."""
 
-    docshare(target, format='numpy', inheritparams=(source, 'foo'))
+    docwrap(target, format='numpy', inheritparams=(source, 'foo'))
     assert 'The foo parameter.' in target.__doc__
     assert 'The bar parameter' not in target.__doc__
 
@@ -1199,7 +1199,7 @@ def test_drop_accepts_an_iterable_of_positions():
     def target():
         """T."""
 
-    docshare(target, format='numpy', inheritreturns=many, ignorereturns=[0, 2])
+    docwrap(target, format='numpy', inheritreturns=many, ignorereturns=[0, 2])
     assert 'Second.' in target.__doc__
     assert 'First.' not in target.__doc__
     assert 'Third.' not in target.__doc__
@@ -1209,7 +1209,7 @@ def test_passing_none_for_a_drop_is_the_same_as_omitting_it():
     def target(foo, bar=1):
         """T."""
 
-    docshare(target, format='numpy', inheritparams=source, dropparams=None)
+    docwrap(target, format='numpy', inheritparams=source, dropparams=None)
     assert 'The foo parameter.' in target.__doc__
     assert 'The bar parameter' in target.__doc__
 
@@ -1219,7 +1219,7 @@ def test_a_position_bound_to_parameters_is_rejected_by_the_decorator():
         """T."""
 
     with pytest.raises(DocMappingError, match='identified by name'):
-        docshare(target, format='numpy', inheritparams=(source, 0))
+        docwrap(target, format='numpy', inheritparams=(source, 0))
 
 
 def test_a_dead_binding_no_longer_passes_silently():
@@ -1231,7 +1231,7 @@ def test_a_dead_binding_no_longer_passes_silently():
 
     target.__doc__ = original
     with pytest.raises(DocMappingError):
-        docshare(target, format='numpy', inheritparams=(source, 0))
+        docwrap(target, format='numpy', inheritparams=(source, 0))
     assert target.__doc__ == original
 
 
@@ -1245,7 +1245,7 @@ def test_inheritall_does_not_pick_up_untitled_prose():
         Trailing prose that is not a section.
         """
 
-    @docshare(format='google', inheritall=base, inheritother=True)
+    @docwrap(format='google', inheritall=base, inheritother=True)
     def target(x):
         """T."""
 

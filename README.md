@@ -7,6 +7,9 @@
 Share documentation between related Python objects, without repeating
 yourself and without templating.
 
+The library is `docshare`; its decorator is `docwrap`, which wraps one
+object's documentation around another's.
+
 `docshare` parses NumPy- and Google-style docstrings, lets a function inherit
 the parts it would otherwise duplicate, and writes the result back to
 `__doc__` as ordinary documentation. Nothing downstream needs to know: `help`,
@@ -27,10 +30,10 @@ $ pip install docshare
 Two functions, the second a variation on the first:
 
 ```python
-from docshare import docshare
+from docshare import docwrap
 
 
-@docshare(format='numpy')
+@docwrap(format='numpy')
 def quuxatize(foo, bar=1):
     """A function that quuxizes the arguments `foo` and `bar`.
 
@@ -49,7 +52,7 @@ def quuxatize(foo, bar=1):
     return (foo * bar) ** (foo + bar)
 
 
-@docshare(format='numpy', inheritparams=quuxatize)
+@docwrap(format='numpy', inheritparams=quuxatize)
 def logquuxatize(foo, bar=1, base=None):
     """Returns the log of the quux of arguments `foo` and `bar`.
 
@@ -105,7 +108,7 @@ runs.
 Sources are tried right to left, so the last one wins:
 
 ```python
-@docshare(format='numpy', inheritparams=(base, mixin, override))
+@docwrap(format='numpy', inheritparams=(base, mixin, override))
 def f(x, y):
     """..."""
 ```
@@ -119,7 +122,7 @@ Bind a source to a single item by pairing it with that item's name. This wins
 regardless of source order:
 
 ```python
-@docshare(format='numpy', inheritparams=(base, mixin, (base, 'x')))
+@docwrap(format='numpy', inheritparams=(base, mixin, (base, 'x')))
 def f(x, y):
     """..."""
 ```
@@ -135,7 +138,7 @@ binding.
 inheritance. It does not remove documentation the object wrote for itself:
 
 ```python
-@docshare(format='numpy', inheritparams=base, dropparams='internal')
+@docwrap(format='numpy', inheritparams=base, dropparams='internal')
 def f(x, internal=None):
     """..."""
 ```
@@ -144,7 +147,7 @@ def f(x, internal=None):
 that name the same idea differently:
 
 ```python
-@docshare(format='numpy', inheritparams=base, parammap={'input': 'x'})
+@docwrap(format='numpy', inheritparams=base, parammap={'input': 'x'})
 def f(input, scale=1):
     """..."""
 ```
@@ -156,7 +159,7 @@ explicitly. `docshare` will not infer it: if the presence of `**kwargs`
 excused undeclared parameters, it would excuse every typo too.
 
 ```python
-@docshare(format='numpy', extraparam='null')
+@docwrap(format='numpy', extraparam='null')
 def f(**kwargs):
     """...
 
@@ -175,7 +178,7 @@ they do not; items in `Raises` and `Warns` are identified by their exception
 type.
 
 ```python
-@docshare(format='numpy', inheritreturns=base, ignorereturns=(0, 2))
+@docwrap(format='numpy', inheritreturns=base, ignorereturns=(0, 2))
 def f():
     """..."""
 ```
@@ -187,7 +190,7 @@ documents one *and* inherits that section must say which inherited item it
 replaces:
 
 ```python
-@docshare(format='numpy', inheritreturns=base, returnmap={0: 2})
+@docwrap(format='numpy', inheritreturns=base, returnmap={0: 2})
 def f():
     """...
 
@@ -203,7 +206,7 @@ Left ambiguous, that is an error rather than a guess.
 ### Everything at once
 
 ```python
-@docshare(format='numpy', inheritall=base)
+@docwrap(format='numpy', inheritall=base)
 def f(x, y):
     """..."""
 ```
@@ -218,7 +221,7 @@ An unrecognized section is preserved wherever it appears, but is never
 inherited unless you name it:
 
 ```python
-@docshare(format='numpy', inheritother=[(base, 'Efferents')])
+@docwrap(format='numpy', inheritother=[(base, 'Efferents')])
 def f(x, y):
     """..."""
 ```
@@ -242,7 +245,7 @@ every member still corresponds to one of your parameters.
 
 ## Arguments
 
-`docshare` accepts these in addition to the per-section arguments below.
+`docwrap` accepts these in addition to the per-section arguments below.
 
 | Argument | Meaning |
 |---|---|
@@ -299,7 +302,7 @@ Google-style function can inherit from a NumPy-style one and still be written
 in its own style.
 
 ```python
-@docshare(inheritparams=numpy_style_source)
+@docwrap(inheritparams=numpy_style_source)
 def f(x, y):
     """Written in Google style.
 
@@ -312,7 +315,7 @@ def f(x, y):
 to convert:
 
 ```python
-@docshare(format='numpy', render='google', inheritparams=base)
+@docwrap(format='numpy', render='google', inheritparams=base)
 def f(x, y):
     """..."""
 ```
@@ -385,7 +388,7 @@ Any of three things resolves it, and the error message says so:
 ```text
 method : str                     give the parameter a type
 method                           or drop the colon
-@docshare(format='numpy', ...)   or say which format the docstring is in
+@docwrap(format='numpy', ...)   or say which format the docstring is in
 ```
 
 A parameter with a type is never ambiguous, so this only arises for a
@@ -403,7 +406,7 @@ sections, each holding items or text. The representation is immutable and
 does not depend on which format it was written in.
 
 `docinfo(obj)` answers from a cache instead, parsing only when it has nothing
-recorded. For an object `docshare` has decorated, that record is the
+recorded. For an object `docwrap` has decorated, that record is the
 *composed* document --- everything inheritance assembled, not just what the
 original docstring said --- which is what makes chains of inheritance work.
 
@@ -476,13 +479,13 @@ def derived(x, y, z):
 
 ```python
 # docshare
-from docshare import docshare
+from docshare import docwrap
 
-@docshare(format='numpy')
+@docwrap(format='numpy')
 def base(x, y):
     """..."""
 
-@docshare(format='numpy', inheritparams=base)
+@docwrap(format='numpy', inheritparams=base)
 def derived(x, y, z):
     """Summary.
 

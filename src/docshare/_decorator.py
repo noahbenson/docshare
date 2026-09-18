@@ -4,9 +4,9 @@
 #
 # The docshare decorator itself.
 
-"""The `docshare` decorator.
+"""The `docwrap` decorator.
 
-The decorator is the whole library seen from the outside: it parses the
+`docwrap` is the whole library seen from the outside: it parses the
 decorated object's documentation, performs the inheritance the caller asked
 for, renders the result, and assigns it back. Everything it accepts is
 shorthand for the generalized inheritance described in specification section
@@ -41,7 +41,7 @@ from ._render import render_document
 from ._sections import iter_section_kinds, section_kind
 from ._signature import PARAMETER_KINDS, validate_signature
 
-__all__ = ('docshare',)
+__all__ = ('docwrap',)
 
 
 #: Short forms that do not follow from the kind name directly.
@@ -198,16 +198,14 @@ def _unknown_argument(name):
         kind = SECTION_ARGUMENTS[intended][1]
         title = kind.replace('_', ' ').title()
         raise DocShareError(
-            f'docshare() got an unexpected argument {name!r}; use '
+            f'docwrap() got an unexpected argument {name!r}; use '
             f'{intended}= instead. The {title} section '
             f'{_EXCLUDE_REASON[prefix]}'
         )
     known = sorted(set(SECTION_ARGUMENTS) | set(GENERAL_ARGUMENTS))
     close = difflib.get_close_matches(name, known, n=3, cutoff=0.6)
     hint = f'; did you mean {" or ".join(map(repr, close))}?' if close else ''
-    raise DocShareError(
-        f'docshare() got an unexpected argument {name!r}{hint}'
-    )
+    raise DocShareError(f'docwrap() got an unexpected argument {name!r}{hint}')
 
 
 def _collect(options):
@@ -357,7 +355,7 @@ def _apply(obj, options):
     return obj
 
 
-def docshare(obj=None, /, **options):
+def docwrap(obj=None, /, **options):
     """Compose an object's documentation from itself and its sources.
 
     The decorator may be used bare, when it only parses and validates the

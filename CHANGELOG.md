@@ -15,6 +15,12 @@ follows [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+* The decorator is named `docwrap`. The package is still `docshare`; the
+  decorator wraps one object's documentation around another's, and the two
+  no longer shadow each other on import.
+* A Google-style section now ends where its indentation returns to column
+  zero rather than at the next section header. Prose that follows a section
+  is kept in place as a section with no title.
 * The error reported when a document appears to mix both formats now explains
   the likeliest cause when one is present: a parameter declared with an empty
   type, such as `method :`, has the same shape as a Google section header.

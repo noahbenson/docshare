@@ -55,31 +55,33 @@ Section prose is the target's own and is never inherited: it describes the
 source's parameters, not the target's, for the same reason section 31 keeps a
 summary with the object that wrote it.
 
-## 2. A parameter named after a section, declared with no type
+## 2. A parameter named after a section, declared with no type --- RESOLVED
 
-*Raised in phase 2. Specification sections 4.2 and 40.*
+*Raised in phase 2; resolved after phase 8. Specification sections 4.2 and
+40.*
 
 A NumPy declaration with an empty type has the same shape as a Google section
-header: a title, a colon, and an indented body. Context resolves this in
-almost every case, but not when the parameter's name is also a recognized
-section title:
+header: a title, a colon, and an indented body. Where the parameter's name is
+also a recognized section title, detection cannot tell them apart and reports
+the ambiguity.
 
-```text
-Parameters
-----------
-notes :
-    Some notes.
-```
+The trigger is narrower than it first appears, and narrower than the section
+count: it does not matter how many sections the document has, nor which ones.
+What matters is the declaration form. `method : str` is unambiguous, and so
+is a bare `method`; only a dangling colon, `method :` or `method:`, has the
+shape of a header. Thirty-four recognized titles and aliases are affected,
+including names people genuinely use --- `args`, `method`, `params`,
+`attributes`, `returns`, `warnings`, `examples` --- but all of them only with
+an empty type.
 
-Automatic detection reports an ambiguity here and directs the caller to pass
-an explicit format. Passing `format='numpy'` reads the document as NumPy
-alone and parses it correctly, so there is a supported way out; the residual
-question is only whether the automatic case should somehow succeed.
-
-A fix would need a rule that distinguishes the two without reference to the
-title, such as requiring a Google header's body to parse as items of that
-section. That is a larger change to the lexer than the case justifies.
-
+Resolved by documentation rather than by detection. The condition is already
+an error, which is a stronger signal than the warning that was considered,
+and three separate things resolve it: give the parameter a type, drop the
+colon, or pass an explicit format. What was missing was that the message said
+the document "mixes NumPy-style sections with Google-style sections
+('method')", which is baffling when `method` is a parameter. The message now
+explains that reading when the suspect header sits inside a NumPy section
+rather than before one, and the README documents the case under formats.
 
 ## 3. A dashes line inside a prose section can look like a header
 

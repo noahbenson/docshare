@@ -13,6 +13,12 @@ follows [semantic versioning](https://semver.org/spec/v2.0.0.html).
   with a description of the section as a whole; it is kept on the section,
   rendered ahead of the items, and is never inherited.
 
+### Changed
+
+* The error reported when a document appears to mix both formats now explains
+  the likeliest cause when one is present: a parameter declared with an empty
+  type, such as `method :`, has the same shape as a Google section header.
+
 ## [0.1.0]
 
 First release.

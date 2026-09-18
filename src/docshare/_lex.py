@@ -372,7 +372,37 @@ def detect_format(lexed):
     raise DocFormatError(
         'cannot determine the documentation format: the document mixes '
         f'NumPy-style sections ({numpy}) with Google-style sections '
-        f'({google}). Pass an explicit format= to say which was intended.'
+        f'({google}).{_declaration_hint(lexed)} Pass an explicit format= to '
+        f'say which was intended.'
+    )
+
+
+def _declaration_hint(lexed):
+    """Explain a Google header that is more likely a parameter declaration.
+
+    A NumPy parameter written with an empty type, as in ``method :``, has
+    exactly the shape of a Google section header, and the name of a section
+    is a perfectly ordinary name for a parameter. When the suspect header
+    sits inside a NumPy section rather than before one, that is the likelier
+    reading, and saying so saves the reader working it out.
+    """
+    first_numpy = None
+    for position, section in enumerate(lexed.sections):
+        if section.style == 'numpy':
+            first_numpy = position
+            break
+    if first_numpy is None:
+        return ''
+    suspects = [
+        s.name for s in lexed.sections[first_numpy:] if s.style == 'google'
+    ]
+    if not suspects:
+        return ''
+    name = suspects[0]
+    return (
+        f' A parameter declared with an empty type, as in "{name} :", has '
+        f'the same shape as a Google section header; if {name!r} is a '
+        f'parameter, give it a type or drop the colon.'
     )
 
 

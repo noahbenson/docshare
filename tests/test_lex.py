@@ -263,3 +263,52 @@ def test_an_unrecognized_google_header_before_numpy_is_seen():
     text = 'S.\n\nEfferents:\n    Downstream.\n\nNotes\n-----\nA.\n'
     lexed = lex(text)
     assert [s.name for s in lexed.sections] == ['Efferents', 'Notes']
+
+
+# A parameter that looks like a Google header ################################
+
+
+@pytest.mark.parametrize(
+    'declaration',
+    ['method : str', 'method : str, optional', 'method', 'method : int'],
+)
+def test_a_typed_parameter_named_after_a_section_is_unambiguous(declaration):
+    text = f'S.\n\nParameters\n----------\n{declaration}\n    The one.\n'
+    assert detect_format(lex(text)) == 'numpy'
+
+
+@pytest.mark.parametrize('declaration', ['method :', 'method:'])
+def test_an_untyped_parameter_named_after_a_section_is_ambiguous(declaration):
+    text = f'S.\n\nParameters\n----------\n{declaration}\n    The one.\n'
+    with pytest.raises(DocFormatError, match='mixes'):
+        detect_format(lex(text))
+
+
+def test_the_ambiguity_error_explains_the_empty_type():
+    text = 'S.\n\nParameters\n----------\nmethod :\n    The method.\n'
+    with pytest.raises(DocFormatError) as info:
+        detect_format(lex(text))
+    message = str(info.value)
+    assert 'empty type' in message
+    assert 'drop the colon' in message
+    assert 'format=' in message
+
+
+def test_a_genuinely_mixed_document_gets_no_declaration_hint():
+    # Here the Google section comes first, so it is not inside a NumPy one.
+    text = 'S.\n\nArgs:\n    x (int): X.\n\nReturns\n-------\nint\n'
+    with pytest.raises(DocFormatError) as info:
+        detect_format(lex(text))
+    assert 'empty type' not in str(info.value)
+
+
+def test_a_document_with_no_numpy_sections_gets_no_declaration_hint():
+    from docshare._lex import _declaration_hint
+
+    assert _declaration_hint(lex('S.\n\nArgs:\n    x (int): X.\n')) == ''
+
+
+def test_an_explicit_format_resolves_the_ambiguity():
+    text = 'S.\n\nParameters\n----------\nmethod :\n    The method.\n'
+    lexed = lex(text, styles=('numpy',))
+    assert [s.name for s in lexed.sections] == ['Parameters']

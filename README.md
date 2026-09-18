@@ -321,6 +321,35 @@ A docstring `docshare` cannot place --- one that mixes both styles, or an
 object with no docstring at all and no `render` --- is an error rather than a
 guess.
 
+### One ambiguity worth knowing about
+
+A NumPy parameter written with an empty type has exactly the shape of a
+Google section header:
+
+```text
+Parameters
+----------
+method :
+    Which method to use.
+```
+
+`method :` could be a parameter with no type, or the start of a Google
+`method:` section. If the name also happens to be one `docshare` recognizes
+as a section --- `method`, `args`, `params`, `returns`, `attributes`,
+`notes`, and a few dozen others --- detection reports the ambiguity instead
+of choosing.
+
+Any of three things resolves it, and the error message says so:
+
+```text
+method : str                     give the parameter a type
+method                           or drop the colon
+@docshare(format='numpy', ...)   or say which format the docstring is in
+```
+
+A parameter with a type is never ambiguous, so this only arises for a
+dangling colon.
+
 ## Reading documentation
 
 ```python

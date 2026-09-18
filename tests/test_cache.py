@@ -145,9 +145,14 @@ def test_two_objects_documented_differently_do_not():
     assert len(doccache) == 2
 
 
-def test_the_cache_is_keyed_by_the_docstring():
+def test_the_cache_is_keyed_by_the_format_and_the_docstring():
     docinfo(make_function())
-    assert list(doccache) == [PARAMS]
+    assert list(doccache) == [(None, PARAMS)]
+
+
+def test_an_explicit_format_is_part_of_the_key():
+    docinfo(make_function(), format='numpy')
+    assert list(doccache) == [('numpy', PARAMS)]
 
 
 def test_a_reassigned_docstring_misses_and_is_reparsed():
@@ -189,10 +194,39 @@ def test_the_cache_does_not_modify_the_documented_object():
 # Format handling ############################################################
 
 
-def test_docinfo_format_applies_only_when_parsing_happens():
+# One text can be read two ways, so the format is part of the key. A NumPy
+# declaration with an empty type has the shape of a Google section header,
+# which makes this docstring a Parameters section with a `notes` parameter in
+# one format and a Notes section in the other.
+AMBIGUOUS = 'S.\n\nParameters\n----------\nnotes :\n    Some notes.\n'
+
+
+def test_a_document_parsed_as_one_format_does_not_answer_for_the_other():
+    as_numpy = docinfo(AMBIGUOUS, format='numpy')
+    as_google = docinfo(AMBIGUOUS, format='google')
+    assert as_numpy is not as_google
+    assert [s.kind for s in as_numpy.sections] == ['parameters']
+    assert [s.kind for s in as_google.sections] == ['notes']
+
+
+def test_the_order_of_the_requests_does_not_matter():
+    first = docinfo(AMBIGUOUS, format='google')
+    clear_docinfo()
+    docinfo(AMBIGUOUS, format='numpy')
+    again = docinfo(AMBIGUOUS, format='google')
+    assert [s.kind for s in again.sections] == [s.kind for s in first.sections]
+
+
+def test_each_format_gets_its_own_entry():
+    docinfo(AMBIGUOUS, format='numpy')
+    docinfo(AMBIGUOUS, format='google')
+    docinfo(AMBIGUOUS, format='numpy')
+    assert len(doccache) == 2
+
+
+def test_a_repeated_request_for_one_format_still_hits():
     f = make_function()
-    first = docinfo(f, format='numpy')
-    assert docinfo(f, format='google') is first
+    assert docinfo(f, format='numpy') is docinfo(f, format='numpy')
 
 
 def test_docinfo_format_is_used_when_it_must_parse():
@@ -322,8 +356,8 @@ def test_the_oldest_entry_is_discarded_first():
     docinfo('First.')
     docinfo('Second.')
     docinfo('Third.')
-    assert 'First.' not in doccache
-    assert 'Third.' in doccache
+    assert (None, 'First.') not in doccache
+    assert (None, 'Third.') in doccache
 
 
 def test_reading_an_entry_makes_it_recent():
@@ -332,8 +366,8 @@ def test_reading_an_entry_makes_it_recent():
     docinfo('Second.')
     docinfo('First.')  # touches it
     docinfo('Third.')
-    assert 'First.' in doccache
-    assert 'Second.' not in doccache
+    assert (None, 'First.') in doccache
+    assert (None, 'Second.') not in doccache
 
 
 def test_lowering_the_bound_discards_at_once():
@@ -366,19 +400,19 @@ def test_the_default_bound_is_generous():
 def test_the_cache_is_a_mapping():
     docinfo(make_function())
     assert len(doccache) == 1
-    assert PARAMS in doccache
-    assert isinstance(doccache[PARAMS], Document)
-    assert next(iter(doccache.values())) is doccache[PARAMS]
+    assert (None, PARAMS) in doccache
+    assert isinstance(doccache[(None, PARAMS)], Document)
+    assert next(iter(doccache.values())) is doccache[(None, PARAMS)]
 
 
 def test_an_entry_can_be_removed():
     docinfo(make_function())
-    del doccache[PARAMS]
+    del doccache[(None, PARAMS)]
     assert len(doccache) == 0
 
 
 def test_an_entry_can_be_supplied_by_hand():
-    doccache['Invented.'] = Document(summary='Invented.')
+    doccache[(None, 'Invented.')] = Document(summary='Invented.')
     assert docinfo('Invented.').summary == 'Invented.'
 
 
@@ -409,6 +443,39 @@ def test_set_docinfo_accepts_an_explicit_text():
     recorded = Document(summary='Composed.')
     set_docinfo(None, recorded, text='Some text.')
     assert docinfo('Some text.') is recorded
+
+
+def test_set_docinfo_answers_for_the_format_it_was_written_in():
+    recorded = Document(summary='Composed.', format='numpy')
+    set_docinfo(None, recorded, text='Some text.', format='numpy')
+    assert docinfo('Some text.') is recorded
+    assert docinfo('Some text.', format='numpy') is recorded
+
+
+def test_a_composed_record_answers_a_later_request_in_either_way():
+    def base(x):
+        """B.
+
+        Parameters
+        ----------
+        x : int
+            The x from base.
+        """
+
+    @docwrap(format='numpy', inheritparams=base)
+    def wrapper(x):
+        """W."""
+
+    assert docinfo(wrapper) is docinfo(wrapper, format='numpy')
+
+
+def test_clear_docinfo_forgets_every_format_of_one_object():
+    f = make_function()
+    docinfo(f)
+    docinfo(f, format='numpy')
+    assert len(doccache) == 2
+    clear_docinfo(f)
+    assert len(doccache) == 0
 
 
 def test_clear_docinfo_forgets_one_object():
@@ -451,7 +518,7 @@ def test_composition_records_the_composed_document():
 
     recorded = docinfo(wrapper)
     assert recorded.section('parameters').items[0].names == ('x',)
-    assert doccache[wrapper.__doc__] is recorded
+    assert doccache[(None, wrapper.__doc__)] is recorded
 
 
 def test_a_composed_object_can_itself_be_inherited_from():
@@ -511,3 +578,29 @@ def test_documentation_of_an_undocumented_object():
         pass
 
     assert documentation(f) is None
+
+
+# A parsed Document as a source (see the guide on inheriting) ################
+
+def test_source_document_passes_a_document_through():
+    from docshare._cache import source_document
+
+    doc = docparse(PARAMS)
+    assert source_document(doc) is doc
+
+
+def test_source_document_looks_an_object_up():
+    from docshare._cache import source_document
+
+    f = make_function()
+    assert source_document(f) is docinfo(f)
+
+
+def test_source_document_does_not_read_a_documents_own_class_docstring():
+    # A Document is an object with a docstring of its own; taking that would
+    # document the target with the description of the Document class.
+    from docshare._cache import source_document
+
+    doc = docparse(PARAMS)
+    assert source_document(doc).section('parameters') is not None
+    assert 'semantic representation' not in str(source_document(doc).summary)

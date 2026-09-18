@@ -34,7 +34,7 @@ from __future__ import annotations
 
 import difflib
 
-from ._cache import docparse, set_docinfo
+from ._cache import docparse, set_docinfo, source_document
 from ._exceptions import DocShareError
 from ._inherit import Operation, compose
 from ._render import render_document
@@ -254,7 +254,7 @@ def _from_inheritall(value, include_opaque):
     inherits = {}
     opaque = []
     for source in sources:
-        for section in docparse(source).sections:
+        for section in source_document(source).sections:
             if section.kind is not None:
                 inherits.setdefault(section.kind, []).append(source)
             elif include_opaque and section.name:
@@ -338,7 +338,7 @@ def _apply(obj, options):
     operations = _operations(options)
     if not operations:
         # Nothing was composed, so the docstring is left exactly as written.
-        set_docinfo(obj, doc)
+        set_docinfo(obj, doc, format=format)
         return obj
     composed = compose(obj, doc, operations, extraparam=extraparam)
     # Inheritance into a signature-ordered section cannot invent a parameter,
@@ -350,8 +350,14 @@ def _apply(obj, options):
         extraparam=extraparam,
         parammap=options.get('parammap'),
     )
-    _assign(obj, render_document(composed, format=render))
-    set_docinfo(obj, composed)
+    text = render_document(composed, format=render)
+    _assign(obj, text)
+    # The record describes the documentation that was just written, so it
+    # carries the format that was written rather than the one that was read.
+    written = render if render is not None else composed.format
+    set_docinfo(
+        obj, composed.evolve(format=written), text=text, format=written
+    )
     return obj
 
 

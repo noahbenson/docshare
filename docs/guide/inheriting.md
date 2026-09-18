@@ -35,6 +35,27 @@ binding. In a section whose items are identified by position, such as
 `Returns`, the key may be a position instead; in a section identified by
 name, a position identifies nothing and is reported as an error.
 
+## A source whose format must be stated
+
+A source is ordinarily an object, and its format is detected from its
+docstring. Where that will not do --- because the docstring is ambiguous, or
+because you want to be explicit --- parse it yourself and hand over the
+result:
+
+```python
+from docshare import docparse, docwrap
+
+
+@docwrap(format='numpy', inheritparams=docparse(base, format='google'))
+def f(x, y):
+    """..."""
+```
+
+Anywhere a source is accepted, an already-parsed
+{py:class}`~docshare.Document` is accepted too: on its own, inside a
+sequence, as the first half of a `(source, key)` binding, and as
+`inheritall`.
+
 ## Skipping
 
 Two arguments exclude an item from inheritance, and which one a section

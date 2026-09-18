@@ -342,6 +342,44 @@ that has no docstring to detect a format from, and giving both converts a
 document from one format into the other.
 
 
+## 13. The format is part of the cache key --- DELIBERATE DEVIATION
+
+*Raised after phase 8. Specification section 8.1.*
+
+Section 8.1 says that where cached information already exists,
+`docinfo(foo, format='google')` returns it regardless of the format supplied,
+on the grounds that the document representation is format-independent.
+
+That holds for a text both formats read the same way, and fails for one they
+do not. A NumPy declaration with an empty type has the shape of a Google
+section header, so this docstring:
+
+```text
+S.
+
+Parameters
+----------
+notes :
+    Some notes.
+```
+
+is a Parameters section with a `notes` parameter when read as NumPy, and a
+Notes section when read as Google. Under section 8.1 whichever format was
+asked for first answered every later request as well, so a single early call
+with the wrong format left the object permanently misdescribed --- even to a
+later call that named the format correctly.
+
+The cache is therefore keyed by `(format, documentation)` rather than by
+documentation alone, and `docinfo` under two formats asks two questions. A
+composed document is recorded under both the format it was written in and the
+detecting request, since detecting the format of that text yields the same
+answer.
+
+This is a deviation from section 8.1 rather than an implementation of it, and
+the specification should be amended: the representation is format-independent
+only once the format is settled, which is what the rule overlooked.
+
+
 # To do
 
 Work that is planned rather than deferred.

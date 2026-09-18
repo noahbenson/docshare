@@ -52,14 +52,26 @@ this would parse the docstring of the {py:class}`str` type itself.
 
 ## The cache
 
-{py:data}`docshare.doccache` is an ordinary mutable mapping from a docstring
-to the {py:class}`~docshare.Document` it parses to, bounded by
-`doccache.maxsize` and discarding its least recently used entry when full.
+{py:data}`docshare.doccache` is an ordinary mutable mapping from a
+`(format, docstring)` pair to the {py:class}`~docshare.Document` that pair
+parses to, bounded by `doccache.maxsize` and discarding its least recently
+used entry when full.
 
 It is keyed by the documentation rather than by the object, so two objects
 documented alike share one record and a reassigned docstring simply misses.
 That also means the cache never refers to the objects it describes: it cannot
 keep one alive, and there is no object it cannot handle.
+
+The format is part of the key because one text can be read two ways. A NumPy
+declaration with an empty type has the shape of a Google section header, so a
+`Parameters` section ending in `notes :` holds a parameter called `notes` in
+one format and starts a `Notes` section in the other. Were the key the text
+alone, whichever format was asked for first would answer every later request
+as well --- including the correct one.
+
+So `docinfo(f, format='numpy')` and `docinfo(f, format='google')` are
+separate questions with separate answers, and asking one does not spoil the
+other.
 
 You may inspect, clear, resize or pre-load it:
 

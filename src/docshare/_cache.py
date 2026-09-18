@@ -14,10 +14,18 @@ inherited sections, `docinfo` reports the assembled document, which is what a
 later object inheriting from it needs.
 
 The cache is keyed by the documentation text itself rather than by the object
-that carries it. That follows from what a parsed document depends on: nothing
-but the text it was parsed from. Two objects documented identically therefore
-share one entry, correctly, and an object whose docstring is reassigned
-simply misses and is parsed again --- which it would have to be in any case.
+that carries it, together with the format it was asked for. That follows from
+what a parsed document depends on: the text, and how that text was read. Two
+objects documented identically therefore share one entry, correctly, and an
+object whose docstring is reassigned simply misses and is parsed again ---
+which it would have to be in any case.
+
+The format belongs in the key because one text can be read two ways. A NumPy
+declaration with an empty type has the shape of a Google section header, so a
+Parameters section whose last entry is ``notes :`` is a parameter called
+`notes` when read as NumPy and the start of a Notes section when read as
+Google. Keyed by text alone, whichever format was asked for first would
+answer every later request as well, including the correct one.
 
 Keying this way also means the cache never refers to the objects it
 describes, so it cannot keep one alive and there is no object it cannot
@@ -44,7 +52,9 @@ import threading
 from collections import OrderedDict
 from collections.abc import MutableMapping
 
+from ._model import Document
 from ._parser import parse_document
+from ._sections import SUPPORTED_FORMATS
 
 __all__ = ('DocCache', 'clear_docinfo', 'doccache', 'docinfo', 'docparse')
 
@@ -54,11 +64,13 @@ DEFAULT_MAXSIZE = 2048
 
 
 class DocCache(MutableMapping):
-    """A bounded cache of parsed documentation, keyed by documentation text.
+    """A bounded cache of parsed documentation.
 
-    The cache behaves as an ordinary mutable mapping from a docstring to the
-    `Document` it parses to, discarding the least recently used entry when it
-    grows past `DocCache.maxsize`.
+    The cache behaves as an ordinary mutable mapping from a
+    ``(format, docstring)`` pair to the `Document` that pair parses to,
+    discarding the least recently used entry when it grows past
+    `DocCache.maxsize`. The format is the one that was *asked for*, so it is
+    ``None`` for a request that let the format be detected.
 
     An instance of this class is exposed as `docshare.doccache`. It is public
     so that it can be inspected, cleared, resized, or pre-loaded, all of which
@@ -192,8 +204,31 @@ class DocCache(MutableMapping):
         )
 
 
-#: The documentation `docshare` has parsed, keyed by documentation text.
+#: The documentation `docshare` has parsed, keyed by ``(format, docstring)``.
 doccache = DocCache()
+
+
+def source_document(obj):
+    """Return the documentation of an inheritance source.
+
+    A source is ordinarily an object with a docstring, but an already-parsed
+    `Document` may be given instead. That is how a source whose format cannot
+    be detected, or which must be read as a particular one, is supplied: parse
+    it with `docparse` first and hand over the result.
+
+    Parameters
+    ----------
+    obj : object
+        The source: a documented object, a docstring, or a `Document`.
+
+    Returns
+    -------
+    Document
+        The source's documentation.
+    """
+    if isinstance(obj, Document):
+        return obj
+    return docinfo(obj)
 
 
 def documentation(obj):
@@ -278,15 +313,15 @@ def docinfo(obj, *, format=None):
     """
     text = documentation(obj)
     try:
-        return doccache[text]
+        return doccache[(format, text)]
     except KeyError:
         pass
     info = parse_document(text, format=format)
-    doccache[text] = info
+    doccache[(format, text)] = info
     return info
 
 
-def set_docinfo(obj, info, text=None):
+def set_docinfo(obj, info, text=None, format=None):
     """Record documentation information for an object.
 
     Composition uses this to record the document it assembled, so that
@@ -303,12 +338,19 @@ def set_docinfo(obj, info, text=None):
         The documentation text the record corresponds to. The default reads
         the object's current ``__doc__``, which is correct when the caller
         has already assigned the rendered documentation.
+    format : str, optional
+        The format `text` is written in. The record answers a request for
+        that format and a request that lets the format be detected, since
+        detecting the format of `text` yields the same thing.
 
     Returns
     -------
     None
     """
-    doccache[documentation(obj) if text is None else text] = info
+    text = documentation(obj) if text is None else text
+    doccache[(None, text)] = info
+    if format is not None:
+        doccache[(format, text)] = info
 
 
 def clear_docinfo(obj=None):
@@ -317,8 +359,9 @@ def clear_docinfo(obj=None):
     Parameters
     ----------
     obj : object, optional
-        The object whose documentation should be forgotten. The default
-        forgets everything, which is chiefly useful in tests.
+        The object whose documentation should be forgotten, in every format
+        it may have been read as. The default forgets everything, which is
+        chiefly useful in tests.
 
     Returns
     -------
@@ -327,4 +370,6 @@ def clear_docinfo(obj=None):
     if obj is None:
         doccache.clear()
         return
-    doccache.pop(documentation(obj), None)
+    text = documentation(obj)
+    for format in (None, *SUPPORTED_FORMATS):
+        doccache.pop((format, text), None)

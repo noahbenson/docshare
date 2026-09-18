@@ -25,7 +25,7 @@ from __future__ import annotations
 
 from typing import NamedTuple
 
-from ._cache import docinfo
+from ._cache import source_document
 from ._exceptions import DocInheritanceError, DocMappingError
 from ._model import Document, FrozenDict, Section
 from ._sections import (
@@ -91,6 +91,9 @@ def _resolve_sources(sources):
     second element: a source is an object with documentation, never a string
     or an integer, so a pair whose second element is one of those names an
     item.
+
+    A source may also be an already-parsed `Document`, which is how a source
+    is supplied whose format has to be stated rather than detected.
     """
     resolved = []
     for source in sources:
@@ -100,7 +103,7 @@ def _resolve_sources(sources):
             candidate, second = source
             if isinstance(second, (str, int)) and not isinstance(second, bool):
                 obj, key = candidate, second
-        resolved.append(_Spec(obj=obj, doc=docinfo(obj), key=key))
+        resolved.append(_Spec(obj=obj, doc=source_document(obj), key=key))
     return tuple(resolved)
 
 

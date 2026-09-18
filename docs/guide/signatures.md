@@ -60,6 +60,20 @@ Functions, methods, classes, properties, static methods and class methods
 all work, in either decorator ordering:
 
 ```python
+from docshare import docwrap
+
+
+def base(p):
+    """A source.
+
+    Parameters
+    ----------
+    p : int
+        The p, as base describes it.
+    """
+    pass
+
+
 class Example:
     @docwrap(format='numpy', inheritparams=base)
     @staticmethod
@@ -70,6 +84,12 @@ class Example:
     @docwrap(format='numpy', inheritparams=base)
     def below(p):
         pass
+
+
+for name in ('above', 'below'):
+    member = Example.__dict__[name]
+    assert 'The p, as base describes it.' in member.__doc__
+    assert isinstance(member, staticmethod)
 ```
 
 Both compose correctly and leave the descriptor's type intact.

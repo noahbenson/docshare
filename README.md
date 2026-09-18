@@ -34,6 +34,7 @@ def quuxatize(foo, bar=1):
     bar : float, optional
         The bar parameter for the quux operation; the default is 1.
     """
+    pass
 
 
 @docwrap(format='numpy', inheritparams=quuxatize)
@@ -45,6 +46,7 @@ def logquuxatize(foo, bar=1, base=None):
     base : float, optional
         The base of the log that should be used; the default is ``None``.
     """
+    pass
 ```
 
 `logquuxatize` now documents `foo`, `bar` and `base`, in signature order, and
@@ -63,6 +65,7 @@ from docshare import docwrap
 @docwrap(format='numpy', inheritparams=numpy.sum, extraparam='axis')
 def total(a, axis=None):
     """Sum an array, the way we like it."""
+    return numpy.sum(a, axis=axis)
 ```
 
 ## The one rule

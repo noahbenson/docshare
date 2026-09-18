@@ -39,6 +39,7 @@ def logquuxatize(foo, bar=1, base=None):
     float
         The log-quux result.
     """
+    pass
 ```
 
 `logquuxatize.__doc__` is now:
@@ -95,6 +96,7 @@ def area(width, height):
     height : float
         The height.
     """
+    return width * height
 ```
 
 That is worth doing for the check alone: a parameter documented under the

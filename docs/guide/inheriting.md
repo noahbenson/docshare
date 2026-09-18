@@ -3,6 +3,59 @@
 Every inheritance is requested explicitly, by naming the object to inherit
 from. A source needs no decoration and no cooperation; it needs a docstring.
 
+The examples on this page all use these three, which are ordinary
+undecorated functions:
+
+```python
+from docshare import docparse, docwrap
+
+
+def base(x, y):
+    """Do the basic thing.
+
+    Parameters
+    ----------
+    x : int
+        The x, as base describes it.
+    y : int
+        The y, as base describes it.
+
+    Returns
+    -------
+    int
+        The first result.
+    int
+        The second result.
+
+    Efferents
+    ---------
+    Connections to downstream objects.
+    """
+    pass
+
+
+def mixin(x, y):
+    """Do it another way.
+
+    Parameters
+    ----------
+    x : int
+        The x, as mixin describes it.
+    """
+    pass
+
+
+def override(x, y):
+    """Do it a third way.
+
+    Parameters
+    ----------
+    x : int
+        The x, as override describes it.
+    """
+    pass
+```
+
 ## Several sources
 
 Sources are tried right to left, so the last one wins:
@@ -10,7 +63,12 @@ Sources are tried right to left, so the last one wins:
 ```python
 @docwrap(format='numpy', inheritparams=(base, mixin, override))
 def f(x, y):
-    """..."""
+    """Do our thing."""
+    pass
+
+
+assert 'The x, as override describes it.' in f.__doc__
+assert 'The y, as base describes it.' in f.__doc__
 ```
 
 For each parameter: whatever `f` documents itself, else `override`, else
@@ -22,9 +80,13 @@ Bind a source to a single item by pairing it with that item's name. The
 binding wins regardless of source order:
 
 ```python
-@docwrap(format='numpy', inheritparams=(base, mixin, (base, 'x')))
+@docwrap(format='numpy', inheritparams=(base, mixin, override, (base, 'x')))
 def f(x, y):
-    """..."""
+    """Do our thing."""
+    pass
+
+
+assert 'The x, as base describes it.' in f.__doc__
 ```
 
 `x` now always comes from `base`; everything else follows the usual order.
@@ -43,12 +105,13 @@ because you want to be explicit --- parse it yourself and hand over the
 result:
 
 ```python
-from docshare import docparse, docwrap
-
-
-@docwrap(format='numpy', inheritparams=docparse(base, format='google'))
+@docwrap(format='numpy', inheritparams=docparse(base, format='numpy'))
 def f(x, y):
-    """..."""
+    """Do our thing."""
+    pass
+
+
+assert 'The x, as base describes it.' in f.__doc__
 ```
 
 Anywhere a source is accepted, an already-parsed
@@ -73,14 +136,24 @@ offers depends on which side decides what exists.
   which of the source's items not to take.
 
 ```python
-@docwrap(format='numpy', inheritparams=base, dropparams='internal')
-def f(x, internal=None):
-    """..."""
+@docwrap(format='numpy', inheritparams=base, dropparams='y')
+def f(x, y):
+    """Do our thing."""
+    pass
 
 
-@docwrap(format='numpy', inheritreturns=base, ignorereturns=(0, 2))
+assert 'The x, as base describes it.' in f.__doc__
+assert 'The y, as base describes it.' not in f.__doc__
+
+
+@docwrap(format='numpy', inheritreturns=base, ignorereturns=0)
 def g():
-    """..."""
+    """Do our thing."""
+    pass
+
+
+assert 'The second result.' in g.__doc__
+assert 'The first result.' not in g.__doc__
 ```
 
 There is no `ignoreparams` and no `dropreturns`, because each would do
@@ -94,9 +167,14 @@ that names the right one.
 the same idea differently:
 
 ```python
-@docwrap(format='numpy', inheritparams=base, parammap={'input': 'x'})
-def f(input, scale=1):
-    """..."""
+@docwrap(format='numpy', inheritparams=base, parammap={'first': 'x'})
+def f(first, scale=1):
+    """Do our thing."""
+    pass
+
+
+assert 'first : int' in f.__doc__
+assert 'The x, as base describes it.' in f.__doc__
 ```
 
 Every section that holds items has an equivalent: `returnmap`, `raisemap`,
@@ -112,13 +190,17 @@ excused undeclared parameters, it would excuse every typo too.
 ```python
 @docwrap(format='numpy', extraparam='null')
 def f(**kwargs):
-    """...
+    """Do our thing.
 
     Parameters
     ----------
     null : bool
-        ...
+        Whether to do nothing at all.
     """
+    pass
+
+
+assert 'null : bool' in f.__doc__
 ```
 
 A declared extra parameter takes part in inheritance like any other.
@@ -135,15 +217,20 @@ documents one *and* inherits that section must say which inherited item it
 replaces:
 
 ```python
-@docwrap(format='numpy', inheritreturns=base, returnmap={0: 2})
+@docwrap(format='numpy', inheritreturns=base, returnmap={0: 1})
 def f():
-    """...
+    """Do our thing.
 
     Returns
     -------
-    float
-        Replaces the source's third return value.
+    int
+        Our own account of the second result.
     """
+    pass
+
+
+assert 'The first result.' in f.__doc__
+assert 'Our own account of the second result.' in f.__doc__
 ```
 
 Left ambiguous, that is an error rather than a guess.
@@ -153,7 +240,13 @@ Left ambiguous, that is an error rather than a guess.
 ```python
 @docwrap(format='numpy', inheritall=base)
 def f(x, y):
-    """..."""
+    """Do our thing."""
+    pass
+
+
+assert 'The x, as base describes it.' in f.__doc__
+assert 'The first result.' in f.__doc__
+assert 'Efferents' not in f.__doc__
 ```
 
 `inheritall` takes every section `docshare` recognizes. It deliberately
@@ -168,7 +261,11 @@ inherited unless you name it:
 ```python
 @docwrap(format='numpy', inheritother=[(base, 'Efferents')])
 def f(x, y):
-    """..."""
+    """Do our thing."""
+    pass
+
+
+assert 'Connections to downstream objects.' in f.__doc__
 ```
 
 ## The general form
@@ -179,7 +276,12 @@ directly:
 ```python
 @docwrap(format='numpy', inherit={'Parameters': base, 'Returns': base})
 def f(x, y):
-    """..."""
+    """Do our thing."""
+    pass
+
+
+assert 'The x, as base describes it.' in f.__doc__
+assert 'The first result.' in f.__doc__
 ```
 
 Naming a section in both places is an error rather than a silent precedence
@@ -196,11 +298,16 @@ assembled rather than only what its own docstring said, so chains work:
 
 ```python
 @docwrap(format='numpy', inheritparams=base)
-def middle(x):
-    """..."""
+def middle(x, y):
+    """Do the middling thing."""
+    pass
 
 
 @docwrap(format='numpy', inheritparams=middle)
-def leaf(x):
-    """..."""
+def leaf(x, y):
+    """Do the leafy thing."""
+    pass
+
+
+assert 'The x, as base describes it.' in leaf.__doc__
 ```

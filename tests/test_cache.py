@@ -582,6 +582,7 @@ def test_documentation_of_an_undocumented_object():
 
 # A parsed Document as a source (see the guide on inheriting) ################
 
+
 def test_source_document_passes_a_document_through():
     from docshare._cache import source_document
 

@@ -7,6 +7,16 @@
 
 ## 1. Overview
 
+> **Note.** This document is the specification `docshare` was built against.
+> Where the implementation has since departed from it --- always
+> deliberately, and always for a reason discovered while building or testing
+> --- the departure is recorded in
+> [`deferred.md`](deferred.md), and the current behavior is described in the
+> [guide](guide/index). Section 8.1 has been revised in place; the decorator
+> is named `docwrap` rather than `docshare`, and the exclusion arguments of
+> sections 17, 24 and 42 are named `drop` or `ignore` according to which side
+> they act on.
+
 `docshare` is a lightweight Python library for parsing, composing, and selectively inheriting structured documentation from Python docstrings.
 
 Its primary purpose is to eliminate repetitive documentation between related functions, methods, classes, and other documented Python objects while retaining ordinary Python docstrings as the final documentation source consumed by downstream tools.
@@ -329,19 +339,26 @@ docparse(foo)
 The `format` argument to `docinfo` applies only when the documentation must
 actually be parsed.
 
-If cached documentation information already exists:
+`format` does not mean "return this document in the requested format". The
+semantic document representation does not depend on the format a document was
+written in, and `docinfo` never converts one document into another.
 
-```python
-docinfo(foo, format='google')
-```
+It does, however, depend on the format a document is *read as*, because a
+single text can be read two ways. A NumPy declaration with an empty type has
+the shape of a Google section header, so a `Parameters` section whose last
+entry is `notes :` holds a parameter named `notes` when read as NumPy and
+begins a `Notes` section when read as Google.
 
-shall return the existing cached information regardless of the supplied
-format.
+Cached information shall therefore be recorded against the format it was
+parsed with, so that a request naming one format is never answered by a
+document parsed as the other. Where two formats read a text identically, this
+is invisible; where they do not, it is the difference between a correct
+answer and a permanently wrong one.
 
-The semantic document representation itself is format-independent.
-
-The distinction should be documented clearly because `format` does not mean
-"return this document in the requested format."
+An earlier draft of this specification required the opposite --- that cached
+information be returned regardless of the format supplied --- on the grounds
+that the representation is format-independent. That reasoning holds only once
+the format is settled, and the requirement was dropped.
 
 ---
 

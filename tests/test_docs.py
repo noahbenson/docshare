@@ -198,6 +198,36 @@ def test_every_code_block_is_valid_python(path, index, block):
     compile(block, f'{path.name}:block{index}', 'exec')
 
 
+@pytest.mark.parametrize(
+    'path', INSTRUCTIONAL, ids=[p.name for p in INSTRUCTIONAL]
+)
+def test_every_code_block_runs(path):
+    """Run a page's examples in order, as a reader would.
+
+    The blocks of one page share a namespace, so a page may set its sources
+    up once and use them afterwards, which is how the pages are written. A
+    block that needs a library which is not installed is skipped rather than
+    failed; the comparison with docrep is the only one.
+    """
+    blocks = re.findall(r'```python\n(.*?)```', path.read_text(), re.S)
+    if not blocks:
+        pytest.skip('no examples on this page')
+    namespace = {}
+    ran = 0
+    for index, block in enumerate(blocks):
+        try:
+            exec(block, namespace)
+        except ImportError as error:
+            pytest.skip(f'{path.name} block {index} needs {error.name}')
+        except Exception as error:
+            raise AssertionError(
+                f'{path.name} block {index} failed: '
+                f'{type(error).__name__}: {error}'
+            ) from error
+        ran += 1
+    assert ran == len(blocks)
+
+
 def _block_containing(needle):
     for _, _, block in CODE_BLOCKS:
         if needle in block:

@@ -6,13 +6,35 @@ Google-style function can inherit from a NumPy-style one and still be written
 in its own style.
 
 ```python
-@docwrap(inheritparams=numpy_style_source)
+from docshare import docwrap
+
+
+def numpy_source(x, y):
+    """A source written in NumPy style.
+
+    Parameters
+    ----------
+    x : int
+        The x, as the NumPy-style source describes it.
+    y : int
+        The y, as the NumPy-style source describes it.
+    """
+    pass
+
+
+@docwrap(inheritparams=numpy_source)
 def f(x, y):
     """Written in Google style.
 
     Args:
         y (int): My own y.
     """
+    pass
+
+
+assert 'Args:' in f.__doc__
+assert 'x (int): The x, as the NumPy-style source describes it.' in f.__doc__
+assert 'My own y.' in f.__doc__
 ```
 
 ## `format` and `render`
@@ -20,9 +42,20 @@ def f(x, y):
 `format` says what a docstring *is*; `render` says what to write.
 
 ```python
-@docwrap(format='numpy', render='google', inheritparams=base)
-def f(x, y):
-    """..."""
+@docwrap(format='numpy', render='google', inheritparams=numpy_source)
+def g(x, y):
+    """Written in NumPy style, written out in Google style.
+
+    Parameters
+    ----------
+    y : int
+        My own y.
+    """
+    pass
+
+
+assert 'Args:' in g.__doc__
+assert 'Parameters\n----------' not in g.__doc__
 ```
 
 `render` defaults to `format`, or to the detected format when `format` was
@@ -30,9 +63,12 @@ not given. Giving `render` alone says how to write an object that has no
 docstring to detect a format from:
 
 ```python
-@docwrap(render='numpy', inheritparams=base)
-def f(x, y):
+@docwrap(render='numpy', inheritparams=numpy_source)
+def h(x, y):
     pass
+
+
+assert h.__doc__.startswith('Parameters\n----------')
 ```
 
 A docstring `docshare` cannot place --- one that mixes both styles, or an

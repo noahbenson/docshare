@@ -258,6 +258,9 @@ fingerprint comparison is gone, because the key is the fingerprint.
 
 ## 10. `dropparams` and `dropreturns` named opposite sides --- RESOLVED
 
+*Sections 17, 24 and 42 still use the original names; the note at the head of
+the specification records that the implementation does not.*
+
 *Raised in phase 6; resolved after phase 8.*
 
 Section 17 made `dropparams` exclude a *target* parameter, while section 24
@@ -342,9 +345,9 @@ that has no docstring to detect a format from, and giving both converts a
 document from one format into the other.
 
 
-## 13. The format is part of the cache key --- DELIBERATE DEVIATION
+## 13. The format is part of the cache key --- RESOLVED IN THE SPECIFICATION
 
-*Raised after phase 8. Specification section 8.1.*
+*Raised after phase 8. Specification section 8.1, since revised.*
 
 Section 8.1 says that where cached information already exists,
 `docinfo(foo, format='google')` returns it regardless of the format supplied,
@@ -375,9 +378,10 @@ composed document is recorded under both the format it was written in and the
 detecting request, since detecting the format of that text yields the same
 answer.
 
-This is a deviation from section 8.1 rather than an implementation of it, and
-the specification should be amended: the representation is format-independent
-only once the format is settled, which is what the rule overlooked.
+Section 8.1 has been revised accordingly: the representation is
+format-independent only once the format is settled, which is what the
+original rule overlooked. The requirement that a recorded document answer a
+request naming any format has been dropped.
 
 
 # To do

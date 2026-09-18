@@ -13,6 +13,8 @@ follows [semantic versioning](https://semver.org/spec/v2.0.0.html).
 * An inheritance source may be an already-parsed `Document`, as returned by
   `docparse` or `docinfo`, wherever an object is accepted. That is how a
   source is supplied whose format has to be stated rather than detected.
+* Every example in the documentation is now self-contained and is executed by
+  the test suite, so a page cannot demonstrate something that does not work.
 
 * Prose introducing a structured section is preserved rather than read as an
   item declaration. A section whose items are identified by name may open
@@ -48,8 +50,8 @@ follows [semantic versioning](https://semver.org/spec/v2.0.0.html).
   the docstring alone. One text can be read two ways --- a NumPy declaration
   with an empty type has the shape of a Google section header --- and keyed
   by text alone, whichever format was asked for first answered every later
-  request as well, including the correct one. This deviates from
-  specification section 8.1; see `docs/deferred.md`.
+  request as well, including the correct one. Specification section 8.1 has
+  been revised accordingly.
 * An item described without a type, which is how Google style writes a
   return value, a raised error, or a warning, is now written in NumPy with
   the least specific type of its hierarchy --- `object`, `Exception`, or

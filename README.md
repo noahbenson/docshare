@@ -321,6 +321,47 @@ A docstring `docshare` cannot place --- one that mixes both styles, or an
 object with no docstring at all and no `render` --- is an error rather than a
 guess.
 
+### Items with no type
+
+Google style lets a return value, a raised error, or a warning be described
+without naming its type. The NumPy standard does not: its specification says
+of `Returns` that "the type of each return value is always required", and
+repeats that for `Yields`. Converting therefore has to supply one, and
+`docshare` writes the least specific type of the relevant hierarchy, which
+asserts no more than the author did:
+
+| Section | supplied type |
+|---|---|
+| `Returns`, `Yields` | `object` |
+| `Raises` | `Exception` |
+| `Warns` | `Warning` |
+
+```text
+Returns:                    →    Returns
+    The computed result.         -------
+                                 object
+                                     The computed result.
+```
+
+Two consequences are worth knowing. Converting back to Google keeps the
+supplied type, so a document that made the round trip says
+`object: The computed result.` --- nothing is lost, but it is not the
+original text. And reading a NumPy docstring that puts prose where a type
+belongs, which the standard does not allow, understands it as a description
+and writes it back with a type. Both leave a docstring saying more than it
+did, never less.
+
+Recognizing that prose is a **heuristic**, and deliberately a narrow one.
+A type cannot be told from a phrase by its shape --- English words are valid
+Python identifiers, so `The computed result` is built exactly like
+`array_like of float`. What separates them is that a type is a noun phrase
+and never closes a sentence. So a declaration that gives no name is read as
+a description **only when it ends with `.`, `?`, or `!`**, and anything else
+keeps its meaning as a type. Types such as `float`, `int, optional`,
+`list of str`, `array_like of float, shape (n,)`, `Sequence[int]`, `{'a',
+'b'}`, and ``:class:`numpy.ndarray``` are all unaffected. A type written
+with a trailing full stop would be misread, which is the price of the rule.
+
 ### One ambiguity worth knowing about
 
 A NumPy parameter written with an empty type has exactly the shape of a

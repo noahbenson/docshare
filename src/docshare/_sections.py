@@ -90,6 +90,12 @@ class SectionKind:
         The kind this one is merged into when rendered in a given format,
         for formats that have no section of their own for it. Formats absent
         from this mapping render the section under its own title.
+    placeholder : str or None
+        The type to write when an item of this section has a description but
+        no type. NumPy style requires a type for every item of a section
+        identified by position, so one has to be supplied; the least
+        specific type of the relevant hierarchy says no more than the author
+        did. This is ``None`` for a section that needs no such type.
     """
 
     name: str
@@ -98,6 +104,7 @@ class SectionKind:
     titles: Mapping[str, str]
     aliases: tuple[str, ...]
     merges: Mapping[str, str]
+    placeholder: str | None
 
 
 # Kinds that one format has no section of its own for, and the kind they are
@@ -105,6 +112,20 @@ class SectionKind:
 # no keyword-argument section; keyword arguments are documented in Parameters.
 _MERGES = {
     'keyword_arguments': {'numpy': 'parameters'},
+}
+
+
+# The type written when an item has a description but no type of its own.
+# The NumPy standard requires a type for every item of these sections --- its
+# specification says so of Returns and repeats it for Yields --- so one must
+# be written, and the base of the relevant hierarchy asserts no more than the
+# author did. Google style has no such requirement and writes no type at all,
+# which is how the two round-trip within their own format.
+_PLACEHOLDERS = {
+    'returns': 'object',
+    'yields': 'object',
+    'raises': 'Exception',
+    'warns': 'Warning',
 }
 
 
@@ -245,6 +266,7 @@ def _build_registry():
             titles=MappingProxyType({'numpy': numpy, 'google': google}),
             aliases=tuple(alias),
             merges=MappingProxyType(dict(_MERGES.get(name, {}))),
+            placeholder=_PLACEHOLDERS.get(name),
         )
         kinds[name] = kind
         for text in alias:

@@ -42,6 +42,7 @@ class _Emit(NamedTuple):
     items: tuple
     text: tuple
     structured: bool
+    placeholder: str | None = None
 
 
 def render_document(doc, format=None):
@@ -125,7 +126,15 @@ def _plan(doc, format):
         position = index.get(target.name)
         if position is None:
             index[target.name] = len(plan)
-            plan.append(_Emit(title, tuple(section.items), section.text, True))
+            plan.append(
+                _Emit(
+                    title,
+                    tuple(section.items),
+                    section.text,
+                    True,
+                    target.placeholder,
+                )
+            )
         else:
             merged = plan[position]
             plan[position] = merged._replace(
@@ -151,7 +160,7 @@ def _write_numpy(emit):
             if emit.items:
                 body.append('')
         for item in emit.items:
-            body.extend(_numpy_item(item))
+            body.extend(_numpy_item(item, emit.placeholder))
     else:
         body.extend(emit.text)
     if not body:
@@ -179,8 +188,16 @@ def _write_google(emit):
     return [f'{emit.title}:', *_indent(body)]
 
 
-def _numpy_item(item):
-    """Write one item in NumPy style."""
+def _numpy_item(item, placeholder=None):
+    """Write one item in NumPy style.
+
+    NumPy style requires a type for every item of a section identified by
+    position, so an item that has a description but no type is written with
+    the placeholder that section uses --- `object` for a returned value,
+    `Exception` for a raised error, `Warning` for a warning. The placeholder
+    says no more than the author did, and Google style, which has no such
+    requirement, writes no type at all.
+    """
     names = ', '.join(item.names)
     description = list(item.description)
     if names and item.type:
@@ -189,9 +206,11 @@ def _numpy_item(item):
         head = names
     elif item.type:
         head = item.type
+    elif description and placeholder:
+        head = placeholder
     elif description:
-        # An item with neither a name nor a type has nothing to put on the
-        # declaration line, so its first line of description goes there.
+        # Nothing to put on the declaration line and no placeholder for this
+        # section, so the first line of description goes there.
         head = description[0]
         description = description[1:]
     else:

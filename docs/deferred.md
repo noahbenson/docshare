@@ -161,48 +161,56 @@ invents content the author did not write, and refusing the conversion fails a
 document that is otherwise perfectly convertible.
 
 
-## 7. A return described without a type --- RESOLVED
+## 7. An item described without a type --- RESOLVED
 
 *Raised in phase 3; resolved after phase 8. Specification sections 46 and
 47.*
 
-Google style permits a return value written as bare prose:
+Google style permits a return value, a raised error, or a warning to be
+described without naming its type. The NumPy standard does not: its
+specification says of Returns that "the type of each return value is always
+required", and repeats it for Yields. Napoleon tolerates the omission for
+Raises and Warns but mangles it, putting the description where the exception
+class belongs, which is the same failure this entry was about.
 
-```text
-Returns:
-    The computed result.
-```
+The first fix wrote the description on the declaration line, where a type
+would go. That produced structurally invalid NumPy: numpydoc reads the
+sentence as the item's *type*.
 
-That parses as an item with neither a name nor a type, only a description.
-NumPy style has no such form, so the renderer puts the description on the
-declaration line, where a type would normally go. Reading it back then made
-the text the item's *type*, and the conversion was one-way. Converting on to
-Google again produced `The computed result.:`, since a type with no
-description is written that way.
+Resolved in two parts.
 
-Resolved by recognizing, when reading a declaration that gives no name, that
-a type never closes a sentence. A line ending in a full stop, question mark,
-or exclamation mark is a description; anything else keeps its reading as a
-type.
+Reading: a declaration that gives no name is understood as a description
+rather than a type when it ends a sentence. This is a heuristic, and
+deliberately a narrow one, because no test decides the question from shape
+alone --- English words are valid Python identifiers, and `The computed
+result` is built exactly like `array_like of float`. A lexical test was tried
+and rejected on the evidence: it called every prose example a type and also
+rejected `Sequence[int]` and `tuple of (int, str)`. A type is a noun phrase
+and never closes a sentence, so ending punctuation is the discriminator, and
+anything not punctuated as prose keeps the meaning it always had. A type
+written with a trailing full stop is misread; that is the price.
 
-A lexical test was tried first and rejected. Whether a line *looks like* a
-type expression cannot be decided by its shape, because English words are
-valid Python identifiers: `The computed result` tokenizes exactly like
-`array_like of float`. That test classified every prose example as a type and
-also rejected real types such as `Sequence[int]`. Sentence-ending punctuation
-separates every case correctly in both directions.
+Writing: an item with a description and no type is written in NumPy with the
+least specific type of its hierarchy --- `object` for a returned or yielded
+value, `Exception` for a raised error, `Warning` for a warning --- which
+asserts no more than the author did. Google style, which has no such
+requirement, writes no type at all, so each format round-trips exactly within
+itself.
 
-The rule is deliberately narrow, so a declaration that is not punctuated as
-prose keeps the meaning it always had, and every type in the test corpus ---
-`float`, `int, optional`, `list of str`, `array_like of float, shape (n,)`,
-`{'a', 'b'}`, `Sequence[int]`, `:class:`numpy.ndarray`` --- is untouched. The
-conversion is now an identity in both directions, for single- and multi-line
-descriptions alike.
+A placeholder object in the model was considered for preserving the
+cross-format round trip and does not achieve it: the model is not what
+travels between formats, the text is, and a sentinel cannot survive being
+written to a docstring. Full identity would additionally require reading
+`object` back as "unspecified", which would silently rewrite a docstring that
+named `object` deliberately. Converting therefore adds the type NumPy
+requires and keeps it: a document that has made the round trip says
+`object: The computed result.` in Google style. Nothing is lost, and
+section 47 only ever required round-tripping within a format.
 
-Writing the tests for this also uncovered an unrelated defect: a
-reStructuredText role used as a type, such as ``:class:`numpy.ndarray```, was
-split at its leading colon and lost its marker. A declaration with nothing
-before the colon is no longer read as separating a name from a type.
+Writing the tests for this uncovered an unrelated defect: a reStructuredText
+role used as a type, such as ``:class:`numpy.ndarray```, was split at its
+leading colon and lost its marker. A declaration with nothing before its
+colon is no longer read as separating a name from a type.
 
 ## 8. Objects that cannot be weakly referenced are not cached
 

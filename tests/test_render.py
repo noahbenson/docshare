@@ -319,22 +319,37 @@ def test_a_bare_google_returns_item_round_trips_within_google():
     assert semantics(again) == semantics(doc)
 
 
-def test_a_bare_google_returns_item_survives_conversion_to_numpy():
-    # The description goes on the declaration line, since NumPy has nowhere
-    # else to put it, and is read back as a description because a type never
-    # closes a sentence.
+def test_an_untyped_return_gains_the_type_numpy_requires():
+    # The NumPy standard requires a type for every item of a section
+    # identified by position, so one is supplied; `object` says no more than
+    # the author did.
+    doc = parse_document('S.\n\nReturns:\n    The computed result.\n')
+    assert render_document(doc, format='numpy') == (
+        'S.\n\nReturns\n-------\nobject\n    The computed result.'
+    )
+
+
+def test_the_supplied_type_reads_back_as_an_ordinary_type():
     doc = parse_document('S.\n\nReturns:\n    The computed result.\n')
     converted = parse_document(render_document(doc, format='numpy'))
     item = converted.section('returns').items[0]
-    assert item.type is None
+    assert item.type == 'object'
     assert item.description == ('The computed result.',)
 
 
-def test_an_untyped_return_converts_back_and_forth_unchanged():
+def test_converting_back_keeps_the_type_rather_than_dropping_it():
+    # Not an identity: the conversion adds the type NumPy requires, and
+    # nothing reads `object` back as "unspecified", which would silently
+    # rewrite a docstring that named `object` deliberately.
     google = 'S.\n\nReturns:\n    The computed result.\n'
     as_numpy = render_document(parse_document(google), format='numpy')
     back = render_document(parse_document(as_numpy), format='google')
-    assert back == google.rstrip()
+    assert back == 'S.\n\nReturns:\n    object: The computed result.'
+
+
+def test_an_untyped_return_round_trips_exactly_within_google():
+    google = 'S.\n\nReturns:\n    The computed result.'
+    assert render_document(parse_document(google)) == google
 
 
 # Types and descriptions in positional sections (deferred items 6 and 7) #####
@@ -397,13 +412,20 @@ def test_the_sentence_rule_does_not_apply_to_named_sections():
     assert doc.section('parameters').items[0].names == ('x',)
 
 
-def test_a_multiline_untyped_return_round_trips_across_formats():
+def test_a_multiline_untyped_return_keeps_all_of_its_description():
     google = (
         'S.\n\nReturns:\n    The computed result.\n    With more detail.\n'
     )
     as_numpy = render_document(parse_document(google), format='numpy')
-    back = render_document(parse_document(as_numpy), format='google')
-    assert back == google.rstrip()
+    assert as_numpy == (
+        'S.\n\nReturns\n-------\nobject\n'
+        '    The computed result.\n    With more detail.'
+    )
+
+
+def test_a_multiline_untyped_return_round_trips_within_google():
+    google = 'S.\n\nReturns:\n    The computed result.\n    With more.'
+    assert render_document(parse_document(google)) == google
 
 
 # An empty section (deferred item 6) #########################################
@@ -429,3 +451,89 @@ def test_dropping_an_empty_section_loses_no_documentation():
     doc = parse_document('S.\n\nNotes\n-----\n\nReturns\n-------\nint\n')
     assert doc.section('notes').text == ()
     assert doc.section('notes').items == ()
+
+
+# The type supplied when an item has none (deferred item 7) ##################
+
+
+@pytest.mark.parametrize(
+    ('section', 'underline', 'placeholder'),
+    [
+        ('Returns', '-------', 'object'),
+        ('Yields', '------', 'object'),
+        ('Raises', '------', 'Exception'),
+        ('Warns', '-----', 'Warning'),
+    ],
+)
+def test_each_positional_section_supplies_its_own_base_type(
+    section, underline, placeholder
+):
+    doc = parse_document(f'S.\n\n{section}:\n    A description.\n')
+    assert render_document(doc, format='numpy') == (
+        f'S.\n\n{section}\n{underline}\n{placeholder}\n    A description.'
+    )
+
+
+@pytest.mark.parametrize(
+    ('section', 'placeholder'),
+    [
+        ('Returns', 'object'),
+        ('Yields', 'object'),
+        ('Raises', 'Exception'),
+        ('Warns', 'Warning'),
+    ],
+)
+def test_a_supplied_type_is_not_written_in_google(section, placeholder):
+    google = f'S.\n\n{section}:\n    A description.'
+    assert render_document(parse_document(google)) == google
+    assert placeholder not in render_document(parse_document(google))
+
+
+@pytest.mark.parametrize(
+    'declaration', ['float', 'ValueError', 'UserWarning', 'array_like of int']
+)
+def test_a_declared_type_is_never_replaced(declaration):
+    text = f'S.\n\nReturns\n-------\n{declaration}\n    The value.'
+    assert render_document(parse_document(text)) == text
+
+
+def test_hand_written_numpy_prose_is_repaired():
+    # A sentence where a type belongs is read as a description, and written
+    # back with the type the standard requires.
+    text = 'S.\n\nReturns\n-------\nThe computed result.\n'
+    assert render_document(parse_document(text)) == (
+        'S.\n\nReturns\n-------\nobject\n    The computed result.'
+    )
+
+
+def test_a_name_identified_section_supplies_no_type():
+    from docshare import section_kind
+
+    assert section_kind('parameters').placeholder is None
+    assert section_kind('attributes').placeholder is None
+    assert section_kind('receives').placeholder is None
+
+
+def test_prose_sections_supply_no_type():
+    from docshare import section_kind
+
+    assert section_kind('notes').placeholder is None
+
+
+def test_an_item_with_no_identity_in_a_section_that_supplies_no_type():
+    # A name-identified section has no placeholder, so an item with neither
+    # a name nor a type falls back to putting its description on the
+    # declaration line. Parsing never builds one; a hand-built document can.
+    doc = Document(
+        sections=[
+            Section(
+                name='Parameters',
+                kind='parameters',
+                items=[Item(description=('Orphaned text.', 'And more.'))],
+            )
+        ],
+        format='numpy',
+    )
+    assert render_document(doc) == (
+        'Parameters\n----------\nOrphaned text.\n    And more.'
+    )

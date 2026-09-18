@@ -21,10 +21,12 @@ follows [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
-* A return value described without a type, which is how Google style writes
-  one, is no longer read back as a *type* after being written in NumPy style.
-  A declaration that gives no name and ends a sentence is a description, so
-  the conversion is now reversible in both directions.
+* An item described without a type, which is how Google style writes a
+  return value, a raised error, or a warning, is now written in NumPy with
+  the least specific type of its hierarchy --- `object`, `Exception`, or
+  `Warning` --- since the NumPy standard requires one. A declaration that
+  gives no name and ends a sentence is read as a description rather than as
+  a type, so prose no longer masquerades as one.
 * A reStructuredText role used as a type, such as ``:class:`ndarray```, is no
   longer split at its leading colon.
 * Binding a source to a *position* in a section whose items are identified by

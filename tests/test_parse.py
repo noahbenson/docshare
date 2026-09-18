@@ -288,6 +288,7 @@ def test_a_later_unparseable_google_item_is_an_error():
 
 # reStructuredText roles as types ############################################
 
+
 @pytest.mark.parametrize(
     'declaration',
     [':class:`numpy.ndarray`', ':obj:`int`', ':py:class:`Foo`'],

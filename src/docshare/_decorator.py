@@ -33,13 +33,21 @@ afterwards, and a docstring assigned later by another decorator is outside
 from __future__ import annotations
 
 import difflib
+import keyword
+from collections.abc import Mapping
 
-from ._cache import docparse, set_docinfo, source_document
+from ._cache import docinfo, docparse, set_docinfo, source_document
 from ._exceptions import DocShareError
 from ._inherit import DESCRIPTION, SUMMARY, Operation, compose
-from ._model import Document
+from ._model import Document, FrozenDict
 from ._render import render_document
-from ._sections import iter_section_kinds, section_kind
+from ._sections import (
+    SUPPORTED_FORMATS,
+    iter_section_kinds,
+    normalize_custom,
+    normalize_title,
+    section_kind,
+)
 from ._signature import PARAMETER_KINDS, validate_signature
 
 __all__ = ('docwrap',)
@@ -111,7 +119,85 @@ GENERAL_ARGUMENTS = (
     'inheritsummary',
     'inheritdescription',
     'extraparam',
+    'custom',
+    'samecustom',
+    'sourceformat',
+    'inheritcustom',
+    'ignorecustom',
+    'custommap',
 )
+
+#: The per-section arguments that name a custom section in a mapping, so
+#: that a section whose title is not a Python name can still be addressed.
+CUSTOM_ARGUMENTS = {
+    'inheritcustom': 'inherit',
+    'ignorecustom': 'drop',
+    'custommap': 'map',
+}
+
+
+def custom_arguments(declared):
+    """Build the per-section arguments a declaration adds to the vocabulary.
+
+    A declared section gets the same three arguments a recognized one has,
+    generated from its title the same way, so that ``Inputs`` is addressed
+    as `inheritinputs` rather than through a mapping. That is only possible
+    when the title is a Python name: a title of several words, or one
+    carrying a hyphen, has no such spelling and is addressed by
+    `inheritcustom` and its companions instead, which every declared section
+    accepts.
+
+    These are conveniences, so a title that cannot have them is not an
+    error. A collision is: two names that generate the same argument, or one
+    that generates an argument `docshare` already has, would otherwise make
+    one of them silently unreachable.
+
+    Parameters
+    ----------
+    declared : Mapping or None
+        A normalized declaration, as `normalize_custom` returns.
+
+    Returns
+    -------
+    dict
+        Each generated argument name, mapped to its role and section kind,
+        in the shape `SECTION_ARGUMENTS` uses.
+
+    Raises
+    ------
+    DocShareError
+        If a generated name collides with an existing argument or with one
+        generated for another declared section.
+    """
+    table = {}
+    owners = {}
+    for key, kind in (declared or {}).items():
+        if kind is None or not key.isidentifier() or keyword.iskeyword(key):
+            # A section with no semantics has nothing to map or exclude, and
+            # a title that is not a name has no short spelling.
+            continue
+        names = {f'inherit{key}': ('inherit', kind.name)}
+        if kind.structured:
+            names[f'ignore{key}'] = ('drop', kind.name)
+            names[_map_name(key)] = ('map', kind.name)
+        for name in names:
+            if name in SECTION_ARGUMENTS or name in GENERAL_ARGUMENTS:
+                raise DocShareError(
+                    f'the custom section {key!r} would be addressed as '
+                    f'{name}=, which docwrap already accepts for something '
+                    f'else; rename the section, or address it with '
+                    f'inheritcustom={{{key!r}: ...}}'
+                )
+            if name in table:
+                raise DocShareError(
+                    f'the custom sections {owners[name]!r} and {key!r} would '
+                    f'both be addressed as {name}=; rename one, or address '
+                    f'them with inheritcustom={{...}}'
+                )
+            owners[name] = key
+        table.update(names)
+    return table
+
 
 #: Maps the arguments naming a document component to that component.
 COMPONENT_ARGUMENTS = {
@@ -158,6 +244,11 @@ def _as_source_specs(value):
     return (value,)
 
 
+def _source_of(spec):
+    """Return the source object of a normalized source specification."""
+    return spec[0] if isinstance(spec, tuple) and len(spec) == 2 else spec
+
+
 class _Sources:
     """Resolves each inheritance source to a document, once per call.
 
@@ -166,17 +257,27 @@ class _Sources:
     is written in, and which sections it declares --- is the decorator's
     business, because that is where the caller says so. Resolving every
     source before any operation is built also means each source is parsed
-    once, whatever number of arguments name it.
+    once, under everything the call said about it, rather than once per
+    argument that happens to name it.
+
+    Parameters
+    ----------
+    plan : Mapping, optional
+        How each source is read, keyed by the source's identity, as
+        `_source_plan` builds it. A source the plan says nothing about is
+        read as it always was: its format detected, and no sections declared
+        beyond the recognized ones.
     """
 
-    __slots__ = ('_documents',)
+    __slots__ = ('_documents', '_plan')
 
-    def __init__(self):
+    def __init__(self, plan=None):
         # Keyed by identity, because a source is an arbitrary object and
         # need not be comparable. The object is kept alongside its document
         # so that it stays alive, and its identity therefore stays unique,
         # for as long as this resolver does.
         self._documents = {}
+        self._plan = plan or {}
 
     def document(self, source):
         """Return the document for one source object."""
@@ -184,7 +285,12 @@ class _Sources:
             return source
         found = self._documents.get(id(source))
         if found is None:
-            found = (source, source_document(source))
+            (format, custom) = self._plan.get(id(source), (None, None))
+            if format is None and custom is None:
+                document = source_document(source)
+            else:
+                document = docinfo(source, format=format, custom=custom)
+            found = (source, document)
             self._documents[id(source)] = found
         return found[1]
 
@@ -198,6 +304,153 @@ class _Sources:
     def resolve_all(self, value):
         """Normalize and resolve an inheritance-source argument."""
         return tuple(self.resolve(e) for e in _as_source_specs(value))
+
+
+def _named_sources(options, custom_args):
+    """Yield ``(source, title)`` for every source the arguments name.
+
+    `title` is the declared section the argument is about, normalized, when
+    the argument is about one; it is ``None`` for an argument that names no
+    particular section, such as `inheritall`.
+    """
+    for name, value in options.items():
+        if name == 'inheritcustom':
+            for key, entry in dict(value or {}).items():
+                title = normalize_title(key)
+                for spec in _as_source_specs(entry):
+                    yield (_source_of(spec), title)
+            continue
+        if name == 'inherit':
+            for entry in dict(value or {}).values():
+                for spec in _as_source_specs(entry):
+                    yield (_source_of(spec), None)
+            continue
+        if name in SECTION_ARGUMENTS:
+            if SECTION_ARGUMENTS[name][0] != 'inherit':
+                continue
+            title = None
+        elif name in custom_args:
+            (role, kind) = custom_args[name]
+            if role != 'inherit':
+                continue
+            title = kind.replace('_', ' ')
+        elif name in ('inheritall', 'inheritsummary', 'inheritdescription'):
+            title = None
+        elif name == 'inheritother':
+            if not isinstance(value, (tuple, list)):
+                continue
+            title = None
+        else:
+            continue
+        for spec in _as_source_specs(value):
+            yield (_source_of(spec), title)
+
+
+def _as_source_set(value, label):
+    """Normalize an argument naming sources into a list of objects."""
+    if value is None:
+        return []
+    entries = list(value) if isinstance(value, (tuple, list)) else [value]
+    for entry in entries:
+        if isinstance(entry, Document):
+            raise DocShareError(
+                f'{label} names an already-parsed document, which was read '
+                f'when it was parsed and cannot be read again; pass the '
+                f'object it came from, or parse it the way you want it'
+            )
+    return entries
+
+
+def _source_plan(options, declared, custom_args):
+    """Decide how each inheritance source is read.
+
+    Three things say how a source should be read, and they are unioned per
+    source rather than applied per argument, so that a source named by two
+    arguments is one document rather than two.
+
+    An argument that names a declared section says so by naming it:
+    ``inheritinputs=fn`` cannot mean anything unless `fn` is read with
+    ``Inputs`` declared. `samecustom` says which sources share the whole
+    declaration, which is what `inheritall` and the other arguments that
+    name no section need. `sourceformat` says which format a source is
+    written in, for a docstring whose format cannot be detected.
+
+    Parameters
+    ----------
+    options : Mapping
+        The decorator's arguments.
+    declared : Mapping or None
+        The normalized declaration, as `normalize_custom` returns.
+    custom_args : Mapping
+        The generated per-section arguments, as `custom_arguments` returns.
+
+    Returns
+    -------
+    dict
+        ``{id(source): (format, custom)}`` for every source the call says
+        something about, where `custom` is the part of the declaration that
+        applies to that source. Keying by identity is safe because every
+        source is held by the arguments themselves for as long as the plan
+        is used.
+
+    Raises
+    ------
+    DocShareError
+        If a source named by `samecustom` or `sourceformat` is an
+        already-parsed document, or if a format is not one docshare
+        supports.
+    """
+    titles = {}
+    formats = {}
+    named = list(_named_sources(options, custom_args))
+    for source, title in named:
+        if title is not None and declared and title in declared:
+            titles.setdefault(id(source), set()).add(title)
+    same = options.get('samecustom')
+    if same is not None and same is not False:
+        if isinstance(same, Mapping):
+            for key, value in same.items():
+                title = normalize_title(key)
+                if not declared or title not in declared:
+                    raise DocShareError(
+                        f'samecustom names the section {key!r}, which '
+                        f'custom= does not declare'
+                    )
+                for source in _as_source_set(value, 'samecustom'):
+                    titles.setdefault(id(source), set()).add(title)
+        else:
+            every = set(declared or ())
+            if same is True:
+                chosen = [source for (source, _) in named]
+            else:
+                chosen = _as_source_set(same, 'samecustom')
+            for source in chosen:
+                titles.setdefault(id(source), set()).update(every)
+    source_format = options.get('sourceformat')
+    if source_format is not None:
+        if isinstance(source_format, Mapping):
+            pairs = list(source_format.items())
+        else:
+            pairs = [(source_format, [s for (s, _) in named])]
+        for format, value in pairs:
+            if format not in SUPPORTED_FORMATS:
+                raise DocShareError(
+                    f'sourceformat names {format!r}, which is not a '
+                    f'documentation format; expected one of '
+                    f'{", ".join(map(repr, SUPPORTED_FORMATS))}'
+                )
+            for source in _as_source_set(value, 'sourceformat'):
+                formats[id(source)] = format
+    plan = {}
+    for key in set(titles) | set(formats):
+        chosen = titles.get(key)
+        custom = (
+            FrozenDict({t: declared[t] for t in sorted(chosen)})
+            if chosen
+            else None
+        )
+        plan[key] = (formats.get(key), custom)
+    return plan
 
 
 def _as_identities(value):
@@ -242,8 +495,9 @@ def _wrong_exclude_prefix(name):
     return (None, None)
 
 
-def _unknown_argument(name):
+def _unknown_argument(name, custom_args=None):
     """Raise a helpful error for an argument `docshare` does not accept."""
+    custom_args = custom_args or {}
     (intended, prefix) = _wrong_exclude_prefix(name)
     if intended is not None:
         kind = SECTION_ARGUMENTS[intended][1]
@@ -253,25 +507,29 @@ def _unknown_argument(name):
             f'{intended}= instead. The {title} section '
             f'{_EXCLUDE_REASON[prefix]}'
         )
-    known = sorted(set(SECTION_ARGUMENTS) | set(GENERAL_ARGUMENTS))
+    known = sorted(
+        set(SECTION_ARGUMENTS) | set(GENERAL_ARGUMENTS) | set(custom_args)
+    )
     close = difflib.get_close_matches(name, known, n=3, cutoff=0.6)
     hint = f'; did you mean {" or ".join(map(repr, close))}?' if close else ''
     raise DocShareError(f'docwrap() got an unexpected argument {name!r}{hint}')
 
 
-def _collect(options, sources):
+def _collect(options, sources, custom_args):
     """Sort the decorator's per-section arguments by role and kind.
 
     Every name is known to be valid: `_apply` rejects unrecognized arguments
-    before any work is done.
+    before any work is done. A generated argument is indistinguishable from
+    a built-in one here, which is the point of generating it.
     """
     inherits = {}
     drops = {}
     maps = {}
     for name, value in options.items():
-        if name in GENERAL_ARGUMENTS:
+        entry = SECTION_ARGUMENTS.get(name) or custom_args.get(name)
+        if entry is None:
             continue
-        (role, kind) = SECTION_ARGUMENTS[name]
+        (role, kind) = entry
         if role == 'inherit':
             inherits[kind] = sources.resolve_all(value)
         elif role == 'drop':
@@ -279,6 +537,47 @@ def _collect(options, sources):
         else:
             maps[kind] = dict(value or {})
     return (inherits, drops, maps)
+
+
+def _from_custom_mappings(options, declared, sources):
+    """Expand ``inheritcustom`` and its companions, which are keyed by title.
+
+    Every declared section is addressable this way, including one whose
+    title has no spelling as an argument name and one declared without a
+    kind, which has no semantics and is inherited whole.
+    """
+    inherits = {}
+    drops = {}
+    maps = {}
+    opaque = []
+    for argument, role in CUSTOM_ARGUMENTS.items():
+        for key, value in dict(options.get(argument) or {}).items():
+            title = normalize_title(key)
+            if not declared or title not in declared:
+                raise DocShareError(
+                    f'{argument} names the section {key!r}, which custom= '
+                    f'does not declare'
+                )
+            kind = declared[title]
+            if kind is None:
+                if role != 'inherit':
+                    raise DocShareError(
+                        f'{argument} names the section {key!r}, which is '
+                        f'declared without a kind and so has no items to '
+                        f'exclude or rename; it is inherited whole'
+                    )
+                for spec in _as_source_specs(value):
+                    opaque.append(
+                        (sources.document(_source_of(spec)), str(key).strip())
+                    )
+                continue
+            if role == 'inherit':
+                inherits[kind.name] = sources.resolve_all(value)
+            elif role == 'drop':
+                drops[kind.name] = _as_identities(value)
+            else:
+                maps[kind.name] = dict(value or {})
+    return (inherits, drops, maps, opaque)
 
 
 def _from_general_inherit(value, sources):
@@ -340,9 +639,23 @@ def _component_operations(options, sources):
     )
 
 
-def _operations(options, sources):
+def _operations(options, sources, declared=None, custom_args=None):
     """Build the ordered operations the decorator's arguments describe."""
-    (inherits, drops, maps) = _collect(options, sources)
+    custom_args = custom_args or {}
+    (inherits, drops, maps) = _collect(options, sources, custom_args)
+    (from_custom, custom_drops, custom_maps, custom_opaque) = (
+        _from_custom_mappings(options, declared, sources)
+    )
+    conflicts = sorted(set(from_custom) & set(inherits))
+    if conflicts:
+        raise DocShareError(
+            f'the {conflicts[0]!r} section is named both by inheritcustom= '
+            f'and by an argument of its own; give it in one place or the '
+            f'other'
+        )
+    inherits.update(from_custom)
+    drops.update(custom_drops)
+    maps.update(custom_maps)
     general = _from_general_inherit(options.get('inherit'), sources)
     conflicts = sorted(set(general) & set(inherits))
     if conflicts:
@@ -374,7 +687,25 @@ def _operations(options, sources):
                 mapping=maps.get(kind.name, {}),
             )
         )
-    opaque = list(opaque_from_all)
+    # A declared section is composed after the recognized ones, in the order
+    # it was declared, so that the order is the caller's rather than an
+    # accident of how the operations were built.
+    for kind in (declared or {}).values():
+        if kind is None:
+            continue
+        documents = inherits.get(kind.name)
+        if not documents:
+            continue
+        operations.append(
+            Operation(
+                kind=kind.name,
+                sources=documents,
+                drop=drops.get(kind.name, frozenset()),
+                mapping=maps.get(kind.name, {}),
+                custom=kind,
+            )
+        )
+    opaque = list(opaque_from_all) + list(custom_opaque)
     if other is not None and other is not True and other is not False:
         for entry in _as_source_specs(other):
             if not (isinstance(entry, tuple) and len(entry) == 2):
@@ -400,24 +731,38 @@ def _assign(obj, text):
 
 
 def _apply(obj, options):
-    """Compose and install documentation on a single object."""
+    """Compose and install documentation on a single object.
+
+    The order matters. What the call declares decides which arguments it may
+    use, so the declaration is read first; the arguments are then checked
+    against a vocabulary that includes the generated ones; how each source
+    is read is settled before any source is read; and only then is anything
+    composed.
+    """
+    declared = normalize_custom(options.get('custom'))
+    custom_args = custom_arguments(declared)
     for name in options:
-        if name not in GENERAL_ARGUMENTS and name not in SECTION_ARGUMENTS:
-            _unknown_argument(name)
+        if (
+            name not in GENERAL_ARGUMENTS
+            and name not in SECTION_ARGUMENTS
+            and name not in custom_args
+        ):
+            _unknown_argument(name, custom_args)
     format = options.get('format')
     render = options.get('render', format)
     extraparam = options.get('extraparam')
-    doc = docparse(obj, format=format)
+    doc = docparse(obj, format=format, custom=options.get('custom'))
     validate_signature(
         obj,
         doc,
         extraparam=extraparam,
         parammap=options.get('parammap'),
     )
-    operations = _operations(options, _Sources())
+    sources = _Sources(_source_plan(options, declared, custom_args))
+    operations = _operations(options, sources, declared, custom_args)
     if not operations:
         # Nothing was composed, so the docstring is left exactly as written.
-        set_docinfo(obj, doc, format=format)
+        set_docinfo(obj, doc, format=format, custom=declared)
         return obj
     composed = compose(obj, doc, operations, extraparam=extraparam)
     # Inheritance into a signature-ordered section cannot invent a parameter,
@@ -435,7 +780,11 @@ def _apply(obj, options):
     # carries the format that was written rather than the one that was read.
     written = render if render is not None else composed.format
     set_docinfo(
-        obj, composed.evolve(format=written), text=text, format=written
+        obj,
+        composed.evolve(format=written),
+        text=text,
+        format=written,
+        custom=declared,
     )
     return obj
 
@@ -485,6 +834,43 @@ def docwrap(obj=None, /, **options):
     extraparam : str or sequence of str, optional
         Parameters documented deliberately although the signature does not
         name them, typically because they are taken from ``**kwargs``.
+    custom : mapping, iterable of str, or str, optional
+        Sections this object's documentation has beyond the ones `docshare`
+        recognizes. Each title either names the recognized section it
+        resembles, borrowing how its body is read, or is given alone, which
+        recognizes the title as a section and leaves its body
+        uninterpreted. Nothing is registered: what one call declares cannot
+        change how anything else is read.
+
+        A declared section is addressed as `inheritcustom` and its
+        companions, and, when its title is a Python name, by arguments
+        generated from it exactly as for a recognized section:
+        ``Inputs`` offers `inheritinputs`, `ignoreinputs`, and `inputmap`.
+    samecustom : bool, object, sequence, or mapping, optional
+        Which sources share the declaration. A source named by an argument
+        that names a declared section is read with that section already,
+        since the argument means nothing otherwise; this is for the
+        arguments that name no section, above all `inheritall`. Give
+        ``True`` for every source, one or more sources for all of the
+        declaration, or a mapping from a declared title to the sources it
+        applies to.
+    sourceformat : str or mapping, optional
+        The format a source is written in, for a docstring whose format
+        cannot be detected. Give one format for every source, or a mapping
+        from a format to the sources written in it. There is no default:
+        a source's format is detected, so that inheriting across the two
+        formats keeps working.
+    inheritcustom : mapping, optional
+        Inherit declared sections, as ``{'Inputs': source}``. Every
+        declared section can be addressed this way, including one whose
+        title is not a Python name and one declared without a kind.
+    ignorecustom : mapping, optional
+        Exclude items of a declared section from inheritance, as
+        ``{'Inputs': 'x'}``. A declared section is driven by its sources,
+        so this names one of *theirs*.
+    custommap : mapping, optional
+        Rename items of a declared section, as
+        ``{'Inputs': {'data': 'x'}}``.
     **options
         Per-section arguments. Every section accepts ``inherit<short>``, and
         every section holding items also accepts ``<singular>map`` and an

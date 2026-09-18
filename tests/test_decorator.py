@@ -15,14 +15,17 @@ from docshare import (
     _decorator,
     clear_docinfo,
     docinfo,
+    docparse,
     docwrap,
 )
 from docshare._decorator import (
     SECTION_ARGUMENTS,
     _operations,
     _Sources,
+    custom_arguments,
 )
 from docshare._model import Document
+from docshare._sections import normalize_custom
 
 
 @pytest.fixture(autouse=True)
@@ -1429,3 +1432,376 @@ def test_a_document_source_is_passed_straight_through():
     parsed = docinfo(described, format='numpy')
     resolved = _Sources().resolve(parsed)
     assert resolved is parsed
+
+
+# Custom sections #############################################################
+
+
+def fitter(w, x):
+    """Fit a model.
+
+    Parameters
+    ----------
+    w : array
+        Fitted weights.
+
+    Inputs
+    ------
+    x : array
+        Observed data.
+
+    Efferents
+    ---------
+    Downstream connections.
+    """
+
+
+def google_fitter(w, x):
+    """Fit a model.
+
+    Args:
+        w (array): Fitted weights.
+
+    Inputs:
+        x (array): Observed data.
+    """
+
+
+INPUTS = {'Inputs': 'Parameters'}
+
+
+def test_a_declared_section_is_read_on_the_target():
+    @docwrap(custom=INPUTS)
+    def f(w, x):
+        """F.
+
+        Parameters
+        ----------
+        w : array
+            The w.
+
+        Inputs
+        ------
+        x : array
+            The x.
+        """
+
+    assert docinfo(f, custom=INPUTS).section('Inputs').spec is not None
+
+
+def test_a_generated_argument_inherits_a_declared_section():
+    @docwrap(custom=INPUTS, inheritinputs=fitter, sourceformat='numpy')
+    def f(w, x):
+        """F.
+
+        Parameters
+        ----------
+        w : array
+            Our w.
+        """
+
+    assert 'Inputs\n------\nx : array' in f.__doc__
+    assert 'Our w.' in f.__doc__
+    assert 'Fitted weights.' not in f.__doc__
+
+
+def test_naming_a_source_in_a_generated_argument_declares_it_for_that_source():
+    # The argument cannot mean anything unless the source is read with the
+    # section declared, so saying so again would be noise.
+    @docwrap(custom=INPUTS, format='numpy', inheritinputs=fitter)
+    def f(w, x):
+        """F."""
+
+    assert 'Observed data.' in f.__doc__
+
+
+def test_a_generated_argument_excludes_and_maps():
+    @docwrap(
+        custom=INPUTS,
+        format='numpy',
+        inheritinputs=fitter,
+        inputmap={'data': 'x'},
+    )
+    def f(w, data):
+        """F."""
+
+    assert 'data : array' in f.__doc__
+
+    @docwrap(
+        custom=INPUTS,
+        format='numpy',
+        inheritinputs=fitter,
+        ignoreinputs='x',
+    )
+    def g(w, x):
+        """G."""
+
+    assert 'Observed data.' not in g.__doc__
+
+
+def test_a_declared_section_is_addressed_by_title_as_well():
+    @docwrap(
+        custom={'Model Inputs': 'Parameters'},
+        format='numpy',
+        inheritcustom={'Model Inputs': fitter},
+        samecustom={'Model Inputs': fitter},
+    )
+    def f(w, x):
+        """F."""
+
+    # fitter spells it "Inputs", which this call has not declared, so there
+    # is nothing to inherit; the point is that the argument is accepted.
+    assert 'Model Inputs' not in f.__doc__
+
+
+def test_a_title_that_is_not_a_name_has_no_generated_argument():
+    with pytest.raises(DocShareError, match='unexpected argument'):
+
+        @docwrap(custom={'Model Inputs': 'Parameters'}, inheritmodelinputs=1)
+        def f(w):
+            """F."""
+
+
+def test_a_declared_section_without_a_kind_is_inherited_whole():
+    @docwrap(
+        custom={'Efferents': None},
+        format='numpy',
+        inheritcustom={'Efferents': fitter},
+    )
+    def f(w, x):
+        """F."""
+
+    assert 'Downstream connections.' in f.__doc__
+
+
+def test_a_declared_section_without_a_kind_cannot_be_mapped():
+    with pytest.raises(DocShareError, match='no items to exclude'):
+
+        @docwrap(
+            custom={'Efferents': None},
+            format='numpy',
+            custommap={'Efferents': {'a': 'b'}},
+        )
+        def f(w):
+            """F."""
+
+
+def test_inheritall_needs_samecustom_to_see_a_declared_section():
+    @docwrap(custom=INPUTS, format='numpy', inheritall=fitter)
+    def without(w, x):
+        """W."""
+
+    @docwrap(custom=INPUTS, format='numpy', inheritall=fitter, samecustom=True)
+    def with_it(w, x):
+        """W."""
+
+    assert 'Inputs\n------' not in without.__doc__
+    assert 'Inputs\n------' in with_it.__doc__
+
+
+def test_samecustom_names_sources_directly():
+    @docwrap(
+        custom=INPUTS, format='numpy', inheritall=fitter, samecustom=fitter
+    )
+    def f(w, x):
+        """F."""
+
+    assert 'Observed data.' in f.__doc__
+
+
+def test_samecustom_names_a_section_and_its_sources():
+    @docwrap(
+        custom=INPUTS,
+        format='numpy',
+        inheritall=fitter,
+        samecustom={'Inputs': fitter},
+    )
+    def f(w, x):
+        """F."""
+
+    assert 'Observed data.' in f.__doc__
+
+
+def test_samecustom_rejects_a_section_that_was_not_declared():
+    with pytest.raises(DocShareError, match='custom= does not declare'):
+
+        @docwrap(custom=INPUTS, samecustom={'Outputs': fitter})
+        def f(w):
+            """F."""
+
+
+def test_inheritcustom_rejects_a_section_that_was_not_declared():
+    with pytest.raises(DocShareError, match='custom= does not declare'):
+
+        @docwrap(custom=INPUTS, inheritcustom={'Outputs': fitter})
+        def f(w):
+            """F."""
+
+
+def test_sourceformat_reads_a_source_as_a_given_format():
+    @docwrap(
+        custom=INPUTS,
+        format='numpy',
+        inheritinputs=google_fitter,
+        sourceformat={'google': google_fitter},
+    )
+    def f(w, x):
+        """F."""
+
+    assert 'Inputs\n------\nx : array' in f.__doc__
+
+
+def test_sourceformat_rejects_a_format_it_does_not_know():
+    with pytest.raises(DocShareError, match='not a documentation format'):
+
+        @docwrap(inheritparams=fitter, sourceformat='rest')
+        def f(w):
+            """F."""
+
+
+def test_cross_format_inheritance_still_works_without_sourceformat():
+    # sourceformat must not default to the target's format: a NumPy target
+    # inheriting from a Google source is ordinary and must keep working.
+    @docwrap(format='numpy', inheritparams=google_fitter)
+    def f(w, x):
+        """F."""
+
+    assert 'Parameters\n----------' in f.__doc__
+    assert 'Fitted weights.' in f.__doc__
+
+
+@pytest.mark.parametrize('argument', ['samecustom', 'sourceformat'])
+def test_a_parsed_document_cannot_be_named_in_a_source_argument(argument):
+    parsed = docinfo(fitter, format='numpy')
+    value = parsed if argument == 'samecustom' else {'numpy': parsed}
+    with pytest.raises(DocShareError, match='already-parsed document'):
+        docwrap(
+            lambda w: None,
+            custom=INPUTS,
+            inheritparams=fitter,
+            **{argument: value},
+        )
+
+
+def test_a_declared_section_is_composed_in_declaration_order():
+    @docwrap(
+        custom={'Inputs': 'Parameters', 'Efferents': None},
+        format='numpy',
+        inheritcustom={'Inputs': fitter, 'Efferents': fitter},
+        samecustom=True,
+    )
+    def f(w, x):
+        """F."""
+
+    body = f.__doc__
+    assert body.index('Inputs') < body.index('Efferents')
+
+
+def test_a_declaration_does_not_escape_the_call():
+    @docwrap(custom=INPUTS, format='numpy', inheritinputs=fitter)
+    def f(w, x):
+        """F."""
+
+    assert docparse(fitter).section('Inputs').opaque
+
+
+# Generated argument names must not collide ###################################
+
+
+@pytest.mark.parametrize('title', ['All', 'Other', 'Custom'])
+def test_a_title_generating_an_existing_argument_is_refused(title):
+    # None of these is a section title, so the "already recognizes" check
+    # does not catch them; each would make an existing argument unreachable.
+    with pytest.raises(DocShareError, match='already accepts'):
+        custom_arguments(normalize_custom({title: 'Parameters'}))
+
+
+def test_two_titles_generating_one_argument_are_refused():
+    # The mapping argument drops a trailing s, so these collide on inputmap.
+    with pytest.raises(DocShareError, match='would both be addressed'):
+        custom_arguments(
+            normalize_custom({'Input': 'Parameters', 'Inputs': 'Parameters'})
+        )
+
+
+def test_a_declared_prose_section_gets_only_an_inherit_argument():
+    table = custom_arguments(normalize_custom({'Caveats': 'Notes'}))
+    assert set(table) == {'inheritcaveats'}
+
+
+def test_a_declared_structured_section_gets_all_three():
+    table = custom_arguments(normalize_custom({'Inputs': 'Parameters'}))
+    assert set(table) == {'inheritinputs', 'ignoreinputs', 'inputmap'}
+
+
+def test_a_declared_section_is_excluded_the_way_its_sources_decide():
+    # It is driven by its sources, so the exclusion names one of theirs and
+    # is spelled ignore, as for every section that is not the signature's.
+    table = custom_arguments(normalize_custom({'Inputs': 'Parameters'}))
+    assert 'dropinputs' not in table
+    assert table['ignoreinputs'][0] == 'drop'
+
+
+def test_declaring_nothing_generates_nothing():
+    assert custom_arguments(None) == {}
+
+
+def test_an_unknown_argument_suggests_a_generated_one():
+    with pytest.raises(DocShareError, match='inheritinputs'):
+
+        @docwrap(custom={'Inputs': 'Parameters'}, inheritinput=fitter)
+        def f(w):
+            """F."""
+
+
+def test_samecustom_of_none_says_nothing():
+    @docwrap(
+        custom=INPUTS, format='numpy', inheritinputs=fitter, samecustom=None
+    )
+    def f(w, x):
+        """F."""
+
+    assert 'Observed data.' in f.__doc__
+
+
+def test_ignorecustom_and_custommap_address_a_declared_section():
+    @docwrap(
+        custom={'Model Inputs': 'Parameters'},
+        format='numpy',
+        inheritcustom={'Model Inputs': fitter},
+        custommap={'Model Inputs': {'data': 'x'}},
+        ignorecustom={'Model Inputs': 'w'},
+        samecustom={'Model Inputs': fitter},
+    )
+    def f(w, data):
+        """F."""
+
+    # fitter spells the section "Inputs", so there is nothing to take; what
+    # is exercised is that both companions are accepted and routed.
+    assert 'Model Inputs' not in f.__doc__
+
+
+def test_a_declared_section_named_twice_is_refused():
+    with pytest.raises(DocShareError, match='in one place or the other'):
+
+        @docwrap(
+            custom=INPUTS,
+            format='numpy',
+            inheritinputs=fitter,
+            inheritcustom={'Inputs': fitter},
+        )
+        def f(w, x):
+            """F."""
+
+
+def test_samecustom_may_name_a_section_with_no_sources():
+    @docwrap(
+        custom=INPUTS,
+        format='numpy',
+        inheritinputs=fitter,
+        samecustom={'Inputs': None},
+    )
+    def f(w, x):
+        """F."""
+
+    assert 'Observed data.' in f.__doc__

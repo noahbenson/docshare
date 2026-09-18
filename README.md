@@ -52,29 +52,33 @@ def logquuxatize(foo, bar=1, base=None):
 `logquuxatize` now documents `foo`, `bar` and `base`, in signature order, and
 nothing in the result hints that any of it was shared.
 
+```
+>>> pring(logquuxatize.__doc__)
+Returns the log of the quux of arguments `foo` and `bar`.
+
+Parameters
+----------
+foo : float
+    The foo parameter for the quux operation.
+bar : float, optional
+    The bar parameter for the quux operation; the default is 1.
+base : float, optional
+    The base of the log that should be used; the default is ``None``.
+```
+
 A source needs no decoration and no cooperation of any kind. It needs a
 docstring --- including one from a library that has never heard of
 `docshare`:
 
 ```python
-import numpy
-
+import numpy as np
 from docshare import docwrap
 
-
-@docwrap(format='numpy', inheritparams=numpy.sum, extraparam='axis')
-def total(a, axis=None):
+@docwrap(format='numpy', inheritparams=(np.sum, np.log))
+def total(a, axis=None, base=None):
     """Sum an array, the way we like it."""
-    return numpy.sum(a, axis=axis)
+    return np.sum(np.log(a, base=base), axis=axis)
 ```
-
-## The one rule
-
-> **Inherited documentation fills gaps. It never replaces what you wrote.**
-
-Inheritance is always requested explicitly --- `docshare` never infers it
-from class hierarchies or call graphs --- and it happens once, when the
-decorator runs.
 
 ## Installation
 

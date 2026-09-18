@@ -1256,3 +1256,70 @@ def test_an_opaque_section_is_inherited_past_other_sections():
         target, Operation(None, name='Efferents', sources=(four_returns,))
     )
     assert doc.section('Efferents').text == ('Downstream connections.',)
+
+
+# A position bound to a name-identified section (docs/deferred.md item 11) ###
+
+
+def test_a_position_bound_to_a_named_section_is_rejected():
+    def target(x, y):
+        """T."""
+
+    with pytest.raises(DocMappingError, match='identified by name'):
+        run(target, Operation('parameters', sources=((alpha, 0),)))
+
+
+def test_the_rejection_survives_the_source_also_being_given_plainly():
+    # This form looks like it works, because the plain source contributes;
+    # the binding is dead and used to say nothing.
+    def target(x, y):
+        """T."""
+
+    with pytest.raises(DocMappingError, match='identified by name'):
+        run(target, Operation('parameters', sources=(alpha, (alpha, 0))))
+
+
+def test_the_rejection_names_the_section_and_the_legal_form():
+    def target(x, y):
+        """T."""
+
+    with pytest.raises(DocMappingError) as info:
+        run(target, Operation('parameters', sources=((alpha, 0),)))
+    message = str(info.value)
+    assert 'parameters' in message
+    assert '(source, "x")' in message
+    assert 'Returns' in message
+
+
+def test_other_name_identified_sections_reject_a_position_too():
+    def target():
+        """T."""
+
+    with pytest.raises(DocMappingError, match='attributes'):
+        run(target, Operation('attributes', sources=((four_returns, 0),)))
+
+
+def test_a_name_binding_is_still_accepted():
+    def target(x, y):
+        """T."""
+
+    doc = run(target, Operation('parameters', sources=(gamma, (alpha, 'x'))))
+    assert descriptions(doc) == ['x from alpha.', 'y from gamma.']
+
+
+def test_a_position_bound_to_an_index_identified_section_is_legal():
+    def target():
+        """T."""
+
+    doc = run(target, Operation('returns', sources=((four_returns, 2),)))
+    assert descriptions(doc, 'returns') == ['Third.']
+
+
+def test_a_label_bound_to_an_index_identified_section_is_legal():
+    def target():
+        """T."""
+
+    doc = run(
+        target, Operation('raises', sources=((four_returns, 'TypeError'),))
+    )
+    assert [i.type for i in doc.section('raises').items] == ['TypeError']

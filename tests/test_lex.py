@@ -316,10 +316,9 @@ def test_an_explicit_format_resolves_the_ambiguity():
 
 # A dashes rule inside prose (docs/deferred.md item 3) #######################
 
+
 def test_an_underlined_title_inside_prose_opens_a_section():
-    text = (
-        'S.\n\nNotes\n-----\nProse.\n\nBackground\n----------\nMore.\n'
-    )
+    text = 'S.\n\nNotes\n-----\nProse.\n\nBackground\n----------\nMore.\n'
     assert [s.name for s in lex(text).sections] == ['Notes', 'Background']
 
 
@@ -327,9 +326,7 @@ def test_the_split_section_is_opaque_so_nothing_is_lost():
     from docshare import docparse
     from docshare._render import render_document
 
-    text = (
-        'S.\n\nNotes\n-----\nProse.\n\nBackground\n----------\nMore.\n'
-    )
+    text = 'S.\n\nNotes\n-----\nProse.\n\nBackground\n----------\nMore.\n'
     doc = docparse(text)
     assert doc.section('Background').opaque
     assert render_document(doc) == text.rstrip()

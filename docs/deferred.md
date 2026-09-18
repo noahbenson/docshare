@@ -275,20 +275,33 @@ item mapping for a source-driven named section, such as `attributemap`, did
 nothing at all, because the target contributed no candidate names for the
 mapping to rename; a mapped name is now a candidate in its own right.
 
-## 11. An integer bound to a name-identified section is ignored
+## 11. An integer bound to a name-identified section --- RESOLVED
 
-*Raised in phase 6. Specification section 16.*
+*Raised in phase 6; resolved after phase 8. Specification section 16.*
 
-A source may be bound to one item with a `(source, key)` pair. In a
-name-identified section the key is a name, and in an index-identified section
-it may be a name or a position. A position given for a name-identified
-section, as in `inheritparams=(foo, (foo, 0))`, matches nothing and is
-silently ignored rather than reported.
+A source may be bound to one item with a `(source, key)` pair. In a section
+whose items are identified by name the key must name one; a position
+identifies nothing there. Such a binding used to match no item and say
+nothing about it, and because a bound source takes no part in the ordinary
+right-to-left search either, the source contributed nothing at all:
+`inheritparams=(source, 0)` inherited an empty section in silence.
 
-Detecting it requires knowing the section kind while normalizing the
-decorator's arguments, which is where it should be caught. Worth doing when
-the decorator's argument validation is revisited.
+The form was easy to miss because writing the source twice hides it. In
+`inheritparams=(source, (source, 0))` the plain source still contributes, so
+the result looks correct while the binding is dead.
 
+Resolved by rejecting it where the section kind is known, which covers both
+the decorator and a direct call to `compose`:
+
+```text
+a source was bound to item 0 of the parameters section, but items there are
+identified by name, so a binding must give one, as in (source, "x"). A
+position identifies an item only in a section that is ordered by its source,
+such as Returns or Raises
+```
+
+A position remains legal in a section ordered by its source, where both a
+position and a label identify an item.
 
 ## 12. `format` cannot be used to convert a document --- RESOLVED
 

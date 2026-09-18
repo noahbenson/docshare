@@ -19,6 +19,13 @@ follows [semantic versioning](https://semver.org/spec/v2.0.0.html).
   the likeliest cause when one is present: a parameter declared with an empty
   type, such as `method :`, has the same shape as a Google section header.
 
+### Fixed
+
+* Binding a source to a *position* in a section whose items are identified by
+  name, as in `inheritparams=(source, 0)`, is now rejected. It previously
+  matched no item and, because a bound source takes no part in the ordinary
+  search either, inherited nothing at all without saying so.
+
 ## [0.1.0]
 
 First release.

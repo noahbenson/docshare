@@ -214,9 +214,31 @@ def _parameter_order(obj, doc, kind, extraparam, specs, mapping):
     return unique
 
 
+def _check_named_keys(specs, kind):
+    """Reject a source bound to a position in a section identified by name.
+
+    A binding says which item to take from which source, so it has to name
+    one. In a section whose items are identified by name, a position names
+    nothing; left unchecked it matches no item, and because a bound source
+    takes no part in the ordinary right-to-left search either, the source
+    would contribute nothing at all without saying so.
+    """
+    for spec in specs:
+        if spec.key is None or isinstance(spec.key, str):
+            continue
+        raise DocMappingError(
+            f'a source was bound to item {spec.key!r} of the {kind} '
+            f'section, but items there are identified by name, so a '
+            f'binding must give one, as in (source, "x"). A position '
+            f'identifies an item only in a section that is ordered by its '
+            f'source, such as Returns or Raises'
+        )
+
+
 def _inherit_named(obj, doc, operation, kind, extraparam):
     """Compose a section whose items are identified by name."""
     specs = _resolve_sources(operation.sources)
+    _check_named_keys(specs, kind)
     mapping = {
         strip_stars(str(k)): strip_stars(str(v))
         for (k, v) in dict(operation.mapping).items()

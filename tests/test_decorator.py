@@ -9,6 +9,7 @@ import pytest
 from docshare import (
     DocFormatError,
     DocInheritanceError,
+    DocMappingError,
     DocShareError,
     DocSignatureError,
     clear_docinfo,
@@ -1211,3 +1212,24 @@ def test_passing_none_for_a_drop_is_the_same_as_omitting_it():
     docshare(target, format='numpy', inheritparams=source, dropparams=None)
     assert 'The foo parameter.' in target.__doc__
     assert 'The bar parameter' in target.__doc__
+
+
+def test_a_position_bound_to_parameters_is_rejected_by_the_decorator():
+    def target(foo, bar=1):
+        """T."""
+
+    with pytest.raises(DocMappingError, match='identified by name'):
+        docshare(target, format='numpy', inheritparams=(source, 0))
+
+
+def test_a_dead_binding_no_longer_passes_silently():
+    # Before, this inherited nothing at all and said nothing about it.
+    original = 'T.'
+
+    def target(foo, bar=1):
+        pass
+
+    target.__doc__ = original
+    with pytest.raises(DocMappingError):
+        docshare(target, format='numpy', inheritparams=(source, 0))
+    assert target.__doc__ == original

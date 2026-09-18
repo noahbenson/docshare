@@ -18,6 +18,11 @@ follows [semantic versioning](https://semver.org/spec/v2.0.0.html).
 * The decorator is named `docwrap`. The package is still `docshare`; the
   decorator wraps one object's documentation around another's, and the two
   no longer shadow each other on import.
+* The documentation cache is safe to use from several threads. Looking an
+  entry up also marks it as recently used, and discarding entries walks the
+  whole cache, so neither was a single dictionary operation; two of the
+  resulting races were reproducible even under the GIL. Iteration and the
+  views built on it now work from a snapshot.
 * The documentation cache is keyed by the documentation text rather than by
   the documented object. Two objects documented identically share one
   record, a reassigned docstring simply misses, and the cache never refers to

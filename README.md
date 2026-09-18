@@ -434,6 +434,30 @@ doc = docparse('''Summary.
 assert doc.section('parameters').items[0].names == ('x',)
 ```
 
+## Threads
+
+`docshare` normally runs while a module is being imported, and two threads
+may import two modules that each use it. That is safe.
+
+The cache is the library's only shared mutable state, and every operation on
+it is atomic with respect to other threads; iteration and the views built on
+it work from a snapshot, so one thread may walk the cache while another
+writes to it. Everything else is either built once when `docshare` is
+imported and only read afterwards, such as the table of recognized sections,
+or belongs to the caller: parsing, composing and rendering keep no state
+between calls.
+
+Parsing happens outside the lock, so two threads that ask for the same
+unrecorded docstring at once will both parse it and one will replace the
+other's entry. A parsed document depends on nothing but the text it came
+from, so the two are equivalent. Holding the lock across parsing would
+serialize exactly the work the cache exists to avoid.
+
+What is *not* guaranteed is anything about the objects you decorate. Two
+threads decorating the same object at the same time race on its `__doc__`
+like any other attribute; normal use decorates each object once, while the
+module defining it is being imported.
+
 ## When something is wrong
 
 `docshare` prefers an error to a guess. Every exception derives from

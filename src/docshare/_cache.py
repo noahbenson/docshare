@@ -24,10 +24,23 @@ describes, so it cannot keep one alive and there is no object it cannot
 handle. It does hold the documentation strings, which cannot be weakly
 referenced, so it is bounded: the least recently used entry is discarded when
 it is full. The bound is generous, and losing an entry costs only a reparse.
+
+The cache is the library's only shared mutable state, and it is synchronized.
+Everything else `docshare` touches is either built once at import and read
+thereafter, such as the section registry, or belongs to the caller. Two
+threads importing two modules that each use `docshare` therefore contend only
+here.
+
+Parsing itself happens outside the lock. Two threads that ask for the same
+unrecorded documentation at the same time will both parse it, and one will
+replace the other's entry; since a document depends only on the text it came
+from, the two are equivalent and either will do. Holding the lock across
+parsing would serialize the work this cache exists to avoid.
 """
 
 from __future__ import annotations
 
+import threading
 from collections import OrderedDict
 from collections.abc import MutableMapping
 
@@ -53,6 +66,13 @@ class DocCache(MutableMapping):
     and putting a document into it that does not correspond to its key will
     produce documentation that does not correspond to anything.
 
+    Every operation is atomic with respect to other threads. Looking an entry
+    up also marks it as recently used, and discarding entries walks the whole
+    cache, so neither is a single dictionary operation and neither would be
+    safe unsynchronized. Iteration, and the views built on it, work from a
+    snapshot, so another thread may add or discard entries while one is being
+    walked without either interfering with the other.
+
     Parameters
     ----------
     maxsize : int, optional
@@ -60,11 +80,12 @@ class DocCache(MutableMapping):
         value of zero disables caching.
     """
 
-    __slots__ = ('_entries', '_maxsize')
+    __slots__ = ('_entries', '_lock', '_maxsize')
 
     def __init__(self, maxsize=DEFAULT_MAXSIZE):
         self._entries = OrderedDict()
         self._maxsize = max(0, int(maxsize))
+        self._lock = threading.Lock()
 
     @property
     def maxsize(self):
@@ -76,39 +97,98 @@ class DocCache(MutableMapping):
 
     @maxsize.setter
     def maxsize(self, value):
-        self._maxsize = max(0, int(value))
-        self._evict()
+        with self._lock:
+            self._maxsize = max(0, int(value))
+            self._evict()
 
     def _evict(self):
-        """Discard the least recently used entries down to the bound."""
+        """Discard the least recently used entries down to the bound.
+
+        The caller must hold the lock.
+        """
         while len(self._entries) > self._maxsize:
             self._entries.popitem(last=False)
 
     def __getitem__(self, key):
-        document = self._entries[key]
-        self._entries.move_to_end(key)
-        return document
+        with self._lock:
+            document = self._entries[key]
+            self._entries.move_to_end(key)
+            return document
 
     def __setitem__(self, key, value):
-        if self._maxsize == 0:
-            return
-        self._entries[key] = value
-        self._entries.move_to_end(key)
-        self._evict()
+        with self._lock:
+            if self._maxsize == 0:
+                return
+            self._entries[key] = value
+            self._entries.move_to_end(key)
+            self._evict()
 
     def __delitem__(self, key):
-        del self._entries[key]
+        with self._lock:
+            del self._entries[key]
 
     def __iter__(self):
-        return iter(self._entries)
+        with self._lock:
+            keys = tuple(self._entries)
+        return iter(keys)
 
     def __len__(self):
-        return len(self._entries)
+        with self._lock:
+            return len(self._entries)
+
+    def __contains__(self, key):
+        with self._lock:
+            return key in self._entries
+
+    def clear(self):
+        """Discard every entry.
+
+        Returns
+        -------
+        None
+        """
+        with self._lock:
+            self._entries.clear()
+
+    def items(self):
+        """Return the cache's entries as a snapshot.
+
+        Returns
+        -------
+        tuple of (str, Document)
+            The entries at the moment of the call, oldest first.
+        """
+        with self._lock:
+            return tuple(self._entries.items())
+
+    def values(self):
+        """Return the cached documents as a snapshot.
+
+        Returns
+        -------
+        tuple of Document
+            The documents at the moment of the call, oldest first.
+        """
+        with self._lock:
+            return tuple(self._entries.values())
+
+    def keys(self):
+        """Return the cached documentation as a snapshot.
+
+        Returns
+        -------
+        tuple of str
+            The keys at the moment of the call, oldest first.
+        """
+        with self._lock:
+            return tuple(self._entries)
 
     def __repr__(self):
+        with self._lock:
+            count = len(self._entries)
         return (
             f'{type(self).__name__}(maxsize={self._maxsize}) with '
-            f'{len(self._entries)} entries'
+            f'{count} entries'
         )
 
 

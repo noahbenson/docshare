@@ -330,3 +330,45 @@ def test_trailing_prose_parses_as_an_untitled_opaque_section():
 def test_the_section_before_trailing_prose_is_unaffected():
     doc = parse_document('S.\n\nArgs:\n    x (int): X.\n\nTrailing prose.\n')
     assert [i.names for i in doc.section('parameters').items] == [('x',)]
+
+
+# Opaque sections are a NumPy-only spelling ##################################
+
+NUMPY_OPAQUE = 'S.\n\nEfferents\n---------\nDownstream connections.\n'
+GOOGLE_OPAQUE = 'S.\n\nEfferents:\n    Downstream connections.\n'
+
+
+def test_numpy_keeps_an_unrecognized_section():
+    doc = parse_document(NUMPY_OPAQUE)
+    section = doc.section('Efferents')
+    assert section is not None
+    assert section.opaque
+    assert section.text == ('Downstream connections.',)
+
+
+def test_google_keeps_an_unrecognized_block_as_prose():
+    # Google style has no way to spell a section docshare does not know: a
+    # title and a colon is also how ordinary prose introduces an example.
+    # The text is preserved exactly; it is simply not a section.
+    doc = parse_document(GOOGLE_OPAQUE)
+    assert doc.sections == ()
+    assert doc.description == ('Efferents:', '    Downstream connections.')
+
+
+def test_an_unrecognized_google_block_does_not_decide_the_format():
+    assert parse_document(GOOGLE_OPAQUE).format is None
+
+
+def test_an_unrecognized_google_block_is_legal_in_a_numpy_document():
+    # This is the case that used to raise: the document really is numpy, and
+    # the colon block is prose, not a Google section.
+    text = (
+        'S.\n\n'
+        'The tuple has the following elements:\n\n'
+        '    a : the first\n\n'
+        'Parameters\n----------\n'
+        'x : int\n    The x.\n'
+    )
+    doc = parse_document(text, format='numpy')
+    assert [s.kind for s in doc.sections] == ['parameters']
+    assert 'The tuple has the following elements:' in doc.description

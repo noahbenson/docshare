@@ -144,7 +144,31 @@ method                           or drop the colon
 ```
 
 A parameter with a type is never ambiguous, so this only arises for a
-dangling colon.
+dangling colon, and only for the few dozen names that are section titles. A
+parameter named anything else --- `x :`, `method2 :` --- is read as the
+declaration it is.
+
+## Prose that ends in a colon
+
+A sentence introducing an indented block has the same shape as a Google
+section header, and sentences like this one are everywhere:
+
+```text
+The tuple has the following elements:
+
+    a : the first
+    b : the second
+```
+
+`docshare` reads that as prose, because `The tuple has the following
+elements` is not the name of a Google section. Only the fixed set of Google
+section titles opens a section, so ordinary prose is never mistaken for one
+--- and a document whose only colon block is prose is not a Google document
+at all, so `format='numpy'` does not conflict with it.
+
+The cost is described under
+{ref}`sections docshare does not recognize <unrecognized-sections>`: a
+Google document cannot spell a section `docshare` has never heard of.
 
 ## Keyword arguments
 

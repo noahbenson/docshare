@@ -4,6 +4,10 @@
 Each entry expresses the same documentation in both supported formats, so
 that a single case can assert they agree, that each round-trips through the
 renderer, and that either converts into the other.
+
+A section `docshare` does not recognize is therefore not here: NumPy style
+can spell one and Google style cannot, so the two formats genuinely disagree
+and the case belongs with the tests for that asymmetry rather than here.
 """
 
 # Each entry is (id, numpy source, google source).
@@ -118,11 +122,6 @@ CORPUS = [
         'Args:\n    x (int): The x.\n\n'
         'Returns:\n    int: The result.\n\n'
         'Notes:\n    A note.\n',
-    ),
-    (
-        'unknown-section',
-        'S.\n\nEfferents\n---------\nDownstream connections.\n',
-        'S.\n\nEfferents:\n    Downstream connections.\n',
     ),
 ]
 

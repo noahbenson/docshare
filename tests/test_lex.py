@@ -259,10 +259,62 @@ def test_a_recognized_google_header_after_numpy_is_still_seen():
     assert lexed.styles == frozenset({'numpy', 'google'})
 
 
-def test_an_unrecognized_google_header_before_numpy_is_seen():
+def test_an_unrecognized_google_header_is_not_a_section():
+    # Google style defines a fixed set of section names, and a colon is
+    # ordinary punctuation, so an unrecognized title is prose.
     text = 'S.\n\nEfferents:\n    Downstream.\n\nNotes\n-----\nA.\n'
     lexed = lex(text)
-    assert [s.name for s in lexed.sections] == ['Efferents', 'Notes']
+    assert [s.name for s in lexed.sections] == ['Notes']
+    assert lexed.description == ('Efferents:', '    Downstream.')
+
+
+# A sentence that ends in a colon ############################################
+
+
+PROSE = """Do a thing.
+
+The tuple has the following elements:
+
+    a : the first
+    b : the second
+
+Parameters
+----------
+x : int
+    The x.
+"""
+
+
+def test_a_sentence_ending_in_a_colon_is_not_a_section():
+    lexed = lex(PROSE)
+    assert [s.name for s in lexed.sections] == ['Parameters']
+    assert 'The tuple has the following elements:' in lexed.description
+
+
+def test_a_sentence_ending_in_a_colon_does_not_make_a_document_ambiguous():
+    assert detect_format(lex(PROSE)) == 'numpy'
+
+
+def test_prose_ending_in_a_colon_leaves_a_document_formatless():
+    # With nothing but the prose block, there is no section either way, so
+    # the document belongs to neither format rather than to Google.
+    lexed = lex('Do a thing.\n\nFor example:\n\n    f(1)\n')
+    assert lexed.sections == ()
+    assert detect_format(lexed) is None
+
+
+@pytest.mark.parametrize(
+    'lead',
+    [
+        'For example',
+        'Consider the following',
+        'The tuple has the following elements',
+        'Usage',
+    ],
+)
+def test_common_prose_lead_ins_are_not_sections(lead):
+    lexed = lex(f'S.\n\n{lead}:\n\n    indented\n')
+    assert lexed.sections == ()
 
 
 # A parameter that looks like a Google header ################################

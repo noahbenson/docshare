@@ -137,6 +137,42 @@ def test_the_numpy_survey_is_substantial():
     assert sum(1 for _ in documented(numpy)) > 100
 
 
+@pytest.mark.parametrize('label,module', MODULES, ids=[m[0] for m in MODULES])
+def test_no_google_document_yields_an_opaque_section(label, module):
+    """No sentence ending in a colon is read as a section.
+
+    A Google header is a title, a colon, and an indented block, which is also
+    how prose introduces an example: real docstrings are full of lines like
+    "The tuple items are:" and "This exports:". Since Google style has a
+    fixed set of section titles, an opaque section can only ever come from a
+    NumPy underline; one from a Google document means a sentence was read as
+    a header.
+
+    This is a property rather than a list of cases, so it keeps holding as
+    the surveyed libraries change their wording.
+    """
+    failures = []
+    for name, obj in documented(module):
+        doc = docparse(obj)
+        if doc.format != 'google':
+            continue
+        for section in doc.sections:
+            if section.opaque and section.name:
+                failures.append(f'{label}.{name}: {section.name!r}')
+    assert not failures, '\n'.join(failures[:10])
+
+
+def test_a_real_docstring_full_of_colons_is_not_google():
+    # absl re-exports the standard library's `time`, whose documentation says
+    # "The tuple items are:" above an indented list and has no sections at
+    # all. It was read as a Google document named after that sentence.
+    import time
+
+    doc = docparse(time)
+    assert doc.sections == ()
+    assert doc.format is None
+
+
 # NumPy style ################################################################
 
 

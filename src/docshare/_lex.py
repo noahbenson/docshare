@@ -221,25 +221,31 @@ def _scan_numpy(lines):
     return found
 
 
-def _scan_google(lines, first_numpy):
+def _scan_google(lines):
     """Find every Google section header, as ``(index, name, body_start)``.
 
-    A NumPy item declaration with an empty type, such as ``x :``, has exactly
-    the shape of a Google header: a title, a colon, and an indented body
-    beneath it. Context tells the two apart. In a document with no NumPy
-    headers at all, every candidate is a header, so that an unrecognized
-    Google section is still preserved. In a document that does have NumPy
-    headers, a candidate that follows the first of them is a header only if
-    its title names a section `docshare` recognizes; otherwise it is an item
-    declaration inside a NumPy section body.
+    A Google header is a title, a colon, and an indented block --- which is
+    also the shape of an ordinary sentence introducing an indented example,
+    and of a NumPy item declared with an empty type:
 
-    Parameters
-    ----------
-    lines : list of str
-        The cleaned document lines.
-    first_numpy : int or None
-        The line index of the first NumPy header, or ``None`` if the
-        document has none.
+    .. code-block:: text
+
+        The tuple has the following elements:
+
+            a : the first
+
+    Nothing about the punctuation distinguishes those from a section, so a
+    Google header is recognized by its *title*: Google style defines a fixed
+    set of section names, as `Napoleon` does, and a candidate whose title is
+    not one of them is not a section. Unlike a NumPy underline, which cannot
+    occur in prose by accident, a colon is ordinary punctuation, so it cannot
+    be trusted on its own.
+
+    The cost is that a Google document has no way to spell a section
+    `docshare` does not know. Such a block is kept verbatim as prose, so
+    nothing is lost from the document, but it is not a section and cannot be
+    inherited as one. NumPy style, whose headers are unambiguous, keeps its
+    opaque sections.
     """
     found = []
     index = 0
@@ -249,8 +255,7 @@ def _scan_google(lines, first_numpy):
             index += 1
             continue
         name, body_start = header
-        inside_numpy = first_numpy is not None and index > first_numpy
-        if inside_numpy and section_kind(name) is None:
+        if section_kind(name) is None:
             index += 1
             continue
         found.append((index, name, body_start))
@@ -297,11 +302,7 @@ def lex(text, styles=None):
     lines = clean(text)
     allowed = SUPPORTED_FORMATS if styles is None else tuple(styles)
     numpy_found = _scan_numpy(lines) if 'numpy' in allowed else []
-    if 'google' in allowed:
-        first = numpy_found[0][0] if numpy_found else None
-        google_found = _scan_google(lines, first)
-    else:
-        google_found = []
+    google_found = _scan_google(lines) if 'google' in allowed else []
     headers = sorted(
         [(i, n, 'numpy', b) for (i, n, b) in numpy_found]
         + [(i, n, 'google', b) for (i, n, b) in google_found]

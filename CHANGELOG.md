@@ -26,6 +26,21 @@ follows [semantic versioning](https://semver.org/spec/v2.0.0.html).
   with a description of the section as a whole; it is kept on the section,
   rendered ahead of the items, and is never inherited.
 
+### Fixed
+
+* A Google-style section header is now recognized by its title rather than by
+  its punctuation. Any line ending in a colon above an indented block was read
+  as a section, so ordinary prose --- `The tuple has the following elements:`,
+  `For example:` --- became a section named after the sentence. Google style
+  defines a fixed set of section titles, as Napoleon does, and a block with any
+  other title is prose. Such a document is no longer Google-formatted on that
+  evidence alone, so `format='numpy'` no longer raises `DocFormatError` for it.
+
+  The cost is that a Google document cannot spell a section `docshare` does not
+  recognize; a NumPy underline can, and still does. The text of such a block is
+  preserved and rendered back exactly either way, but under Google style it is
+  prose rather than an opaque section, so `inheritother` cannot name it.
+
 ### Changed
 
 * A docstring that opens with the documented object's own call signature, as

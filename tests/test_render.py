@@ -592,3 +592,28 @@ def test_a_leading_call_signature_survives_a_format_conversion():
 def test_an_ordinary_document_carries_no_signature():
     doc = parse_document('Summary.\n\nNotes\n-----\nA note.\n')
     assert 'signature' not in doc.meta
+
+
+# Opaque sections are a NumPy-only spelling ##################################
+
+
+def test_an_opaque_numpy_section_round_trips():
+    text = 'S.\n\nEfferents\n---------\nDownstream connections.\n'
+    doc = parse_document(text)
+    assert render_document(doc) == text.rstrip()
+
+
+def test_an_unrecognized_google_block_round_trips_as_prose():
+    text = 'S.\n\nEfferents:\n    Downstream connections.\n'
+    doc = parse_document(text)
+    assert render_document(doc, format='google') == text.rstrip()
+
+
+def test_an_opaque_section_written_as_google_is_prose_when_read_back():
+    # Rendering into Google is lossy for an opaque section, because Google
+    # has no syntax that distinguishes one from prose. The text survives; its
+    # status as a section does not.
+    doc = parse_document('S.\n\nEfferents\n---------\nDownstream.\n')
+    again = parse_document(render_document(doc, format='google'))
+    assert again.sections == ()
+    assert again.description == ('Efferents:', '    Downstream.')

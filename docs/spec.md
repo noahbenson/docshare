@@ -509,6 +509,16 @@ shall not cause an error merely because `Efferents` is unknown to `docshare`.
 
 Unknown sections shall be preserved as opaque documentation.
 
+This applies where the format can express such a section. A NumPy underline
+cannot occur in ordinary prose, so an unrecognized NumPy title is
+unambiguously a section. A Google header is a title, a colon, and an
+indented block, which is also the shape of a sentence introducing an
+indented example, so an unrecognized Google title shall be read as prose
+rather than as a section. Google style therefore defines a fixed set of
+section titles, as `Napoleon` does. Such a block shall still be preserved
+verbatim, as section 30 requires, but it is not a section and cannot be
+inherited as one.
+
 ---
 
 # 14. Inheritance philosophy

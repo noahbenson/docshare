@@ -20,7 +20,13 @@ import sys
 import pytest
 
 import docshare
-from docshare._decorator import GENERAL_ARGUMENTS, SECTION_ARGUMENTS
+from docshare import DocShareError
+from docshare._decorator import (
+    GENERAL_ARGUMENTS,
+    SECTION_ARGUMENTS,
+    custom_arguments,
+)
+from docshare._sections import normalize_custom
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 DOCS = ROOT / 'docs'
@@ -63,6 +69,44 @@ NAMED = (
 #: Arguments the documentation names in order to say that they do not exist.
 #: Each is the wrong half of the drop/ignore pair for its section.
 DELIBERATELY_ABSENT = {'ignoreparams', 'dropreturns'}
+
+
+def _declared_titles():
+    """Return every section title the documentation declares with custom=.
+
+    A declared section adds arguments generated from its title, so a page
+    that declares one may legitimately name arguments that no static table
+    holds. Only the titles the documentation itself declares count, so an
+    argument invented out of nowhere is still caught.
+    """
+    titles = set()
+    for literal in re.findall(r'custom=[\[{]([^\]}]*)[\]}]', TEXT):
+        if ':' in literal:
+            # A mapping: the titles are its keys, not the sections they
+            # resemble.
+            titles.update(re.findall(r"'([^']+)'\s*:", literal))
+        else:
+            titles.update(re.findall(r"'([^']+)'", literal))
+    return titles
+
+
+#: The arguments that the declarations in the documentation generate. A
+#: declaration is tried against both a structured section and a prose one,
+#: since the page may declare either and the arguments differ.
+GENERATED = set()
+for _title in _declared_titles():
+    for _like in ('Parameters', 'Notes'):
+        try:
+            GENERATED |= set(
+                custom_arguments(normalize_custom({_title: _like}))
+            )
+        except DocShareError:
+            # A title the documentation names in order to show that it is
+            # refused, or one whose arguments would collide.
+            continue
+
+#: Every argument a documented call may legitimately use.
+KNOWN_ARGUMENTS = set(SECTION_ARGUMENTS) | set(GENERAL_ARGUMENTS) | GENERATED
 
 
 def test_the_documentation_exists():
@@ -114,10 +158,16 @@ def test_every_general_argument_is_documented(name):
     ),
 )
 def test_no_invented_inherit_or_exclude_arguments(name):
-    known = set(SECTION_ARGUMENTS) | set(GENERAL_ARGUMENTS)
-    assert name in known, (
+    assert name in KNOWN_ARGUMENTS, (
         f'the documentation names {name}, which does not exist'
     )
+
+
+def test_the_drift_guard_still_catches_an_invented_argument():
+    # The known set grows with what the documentation declares, so it is
+    # worth checking that it has not grown into accepting anything.
+    assert 'inheritnonsense' not in KNOWN_ARGUMENTS
+    assert 'nonsensemap' not in KNOWN_ARGUMENTS
 
 
 @pytest.mark.parametrize('name', sorted(DELIBERATELY_ABSENT))
@@ -131,8 +181,7 @@ def test_the_arguments_said_not_to_exist_really_do_not(name):
 
 @pytest.mark.parametrize('name', sorted(n for n in NAMED if n.endswith('map')))
 def test_no_invented_mapping_arguments(name):
-    known = set(SECTION_ARGUMENTS) | set(GENERAL_ARGUMENTS)
-    assert name in known, (
+    assert name in KNOWN_ARGUMENTS, (
         f'the documentation names {name}, which does not exist'
     )
 

@@ -168,7 +168,8 @@ at all, so `format='numpy'` does not conflict with it.
 
 The cost is described under
 {ref}`sections docshare does not recognize <unrecognized-sections>`: a
-Google document cannot spell a section `docshare` has never heard of.
+Google document cannot spell a section `docshare` has never heard of unless
+it is declared, which {doc}`custom` describes.
 
 ## Keyword arguments
 

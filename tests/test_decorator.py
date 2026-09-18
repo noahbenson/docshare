@@ -1544,7 +1544,7 @@ def test_a_declared_section_is_addressed_by_title_as_well():
         custom={'Model Inputs': 'Parameters'},
         format='numpy',
         inheritcustom={'Model Inputs': fitter},
-        samecustom={'Model Inputs': fitter},
+        sourcecustom={'Model Inputs': fitter},
     )
     def f(w, x):
         """F."""
@@ -1586,12 +1586,14 @@ def test_a_declared_section_without_a_kind_cannot_be_mapped():
             """F."""
 
 
-def test_inheritall_needs_samecustom_to_see_a_declared_section():
+def test_inheritall_needs_sourcecustom_to_see_a_declared_section():
     @docwrap(custom=INPUTS, format='numpy', inheritall=fitter)
     def without(w, x):
         """W."""
 
-    @docwrap(custom=INPUTS, format='numpy', inheritall=fitter, samecustom=True)
+    @docwrap(
+        custom=INPUTS, format='numpy', inheritall=fitter, sourcecustom=True
+    )
     def with_it(w, x):
         """W."""
 
@@ -1599,9 +1601,9 @@ def test_inheritall_needs_samecustom_to_see_a_declared_section():
     assert 'Inputs\n------' in with_it.__doc__
 
 
-def test_samecustom_names_sources_directly():
+def test_sourcecustom_names_sources_directly():
     @docwrap(
-        custom=INPUTS, format='numpy', inheritall=fitter, samecustom=fitter
+        custom=INPUTS, format='numpy', inheritall=fitter, sourcecustom=fitter
     )
     def f(w, x):
         """F."""
@@ -1609,12 +1611,12 @@ def test_samecustom_names_sources_directly():
     assert 'Observed data.' in f.__doc__
 
 
-def test_samecustom_names_a_section_and_its_sources():
+def test_sourcecustom_names_a_section_and_its_sources():
     @docwrap(
         custom=INPUTS,
         format='numpy',
         inheritall=fitter,
-        samecustom={'Inputs': fitter},
+        sourcecustom={'Inputs': fitter},
     )
     def f(w, x):
         """F."""
@@ -1622,10 +1624,10 @@ def test_samecustom_names_a_section_and_its_sources():
     assert 'Observed data.' in f.__doc__
 
 
-def test_samecustom_rejects_a_section_that_was_not_declared():
+def test_sourcecustom_rejects_a_section_that_was_not_declared():
     with pytest.raises(DocShareError, match='custom= does not declare'):
 
-        @docwrap(custom=INPUTS, samecustom={'Outputs': fitter})
+        @docwrap(custom=INPUTS, sourcecustom={'Outputs': fitter})
         def f(w):
             """F."""
 
@@ -1670,10 +1672,10 @@ def test_cross_format_inheritance_still_works_without_sourceformat():
     assert 'Fitted weights.' in f.__doc__
 
 
-@pytest.mark.parametrize('argument', ['samecustom', 'sourceformat'])
+@pytest.mark.parametrize('argument', ['sourcecustom', 'sourceformat'])
 def test_a_parsed_document_cannot_be_named_in_a_source_argument(argument):
     parsed = docinfo(fitter, format='numpy')
-    value = parsed if argument == 'samecustom' else {'numpy': parsed}
+    value = parsed if argument == 'sourcecustom' else {'numpy': parsed}
     with pytest.raises(DocShareError, match='already-parsed document'):
         docwrap(
             lambda w: None,
@@ -1688,7 +1690,7 @@ def test_a_declared_section_is_composed_in_declaration_order():
         custom={'Inputs': 'Parameters', 'Efferents': None},
         format='numpy',
         inheritcustom={'Inputs': fitter, 'Efferents': fitter},
-        samecustom=True,
+        sourcecustom=True,
     )
     def f(w, x):
         """F."""
@@ -1754,9 +1756,9 @@ def test_an_unknown_argument_suggests_a_generated_one():
             """F."""
 
 
-def test_samecustom_of_none_says_nothing():
+def test_sourcecustom_of_none_says_nothing():
     @docwrap(
-        custom=INPUTS, format='numpy', inheritinputs=fitter, samecustom=None
+        custom=INPUTS, format='numpy', inheritinputs=fitter, sourcecustom=None
     )
     def f(w, x):
         """F."""
@@ -1771,7 +1773,7 @@ def test_ignorecustom_and_custommap_address_a_declared_section():
         inheritcustom={'Model Inputs': fitter},
         custommap={'Model Inputs': {'data': 'x'}},
         ignorecustom={'Model Inputs': 'w'},
-        samecustom={'Model Inputs': fitter},
+        sourcecustom={'Model Inputs': fitter},
     )
     def f(w, data):
         """F."""
@@ -1794,12 +1796,12 @@ def test_a_declared_section_named_twice_is_refused():
             """F."""
 
 
-def test_samecustom_may_name_a_section_with_no_sources():
+def test_sourcecustom_may_name_a_section_with_no_sources():
     @docwrap(
         custom=INPUTS,
         format='numpy',
         inheritinputs=fitter,
-        samecustom={'Inputs': None},
+        sourcecustom={'Inputs': None},
     )
     def f(w, x):
         """F."""

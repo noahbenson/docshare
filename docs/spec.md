@@ -1974,6 +1974,50 @@ The downstream documentation system should have no knowledge that `foo` and
 
 ---
 
+# 62. Declared sections
+
+The set of sections `docshare` understands is fixed, and section 13 requires
+an unknown section to be preserved rather than interpreted. A caller may
+nonetheless need one read rather than merely kept, and Google style, per
+section 13, cannot express an unknown section at all.
+
+A reading request shall therefore be able to declare sections beyond the
+recognized ones. A declaration gives each title either a recognized section
+it resembles, or nothing at all.
+
+A declared section is a section of its own and not another name for the one
+it resembles. Both may appear in one document and mean different things, so
+a declared section:
+
+* borrows from the section it resembles only how its body is read: whether
+  the body holds items, how those items are identified, and the type that
+  stands in for one that is missing;
+* keeps its declared title in both formats, and is never rendered under the
+  title of the section it resembles;
+* is never merged into another section, having no equivalent in either
+  format;
+* is never validated against the callable's signature, and is inherited from
+  its sources rather than from the target's parameters.
+
+A title declared without a resemblance is recognized as a section and
+otherwise left uninterpreted, exactly as an unknown NumPy section is.
+
+A declaration shall apply only to the request that makes it. Nothing shall
+be registered globally, so that a declaration made by one caller cannot
+change how documentation is read for another. It follows that cached
+documentation is keyed by the declaration as well as by the text and the
+format, since one text read under two declarations is two documents.
+
+A declared title shall be one both formats can express, and shall not be one
+`docshare` already recognizes.
+
+Documentation rendered from a document containing a declared section does
+not carry the declaration. Reading such documentation again without it
+yields the preserved, uninterpreted form; this is a consequence of
+documentation being text, and is not an error.
+
+---
+
 # 61. Summary of core invariants
 
 The implementation should preserve the following invariants:
@@ -1999,6 +2043,8 @@ The implementation should preserve the following invariants:
 15. **Signature validation can be explicitly adjusted for legitimate
     documentation parameters not visible in the Python signature.**
 16. **The library remains lightweight, pure Python, and minimally dependent.**
+17. **Sections declared beyond the recognized ones apply only to the request
+    that declares them.**
 
 These invariants should guide implementation decisions whenever an edge case
 is not explicitly covered elsewhere in the specification.

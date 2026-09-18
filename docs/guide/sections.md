@@ -104,8 +104,11 @@ So Google headers are recognized by name --- the fixed set that
 [Napoleon](https://www.sphinx-doc.org/en/master/usage/extensions/napoleon.html)
 defines, which is the same set listed above --- and a block with any other
 title is prose. It is preserved exactly, and renders back exactly, but it is
-not a section and cannot be inherited as one. Writing that section in NumPy
-style is the way to have `docshare` treat it as one.
+not a section and cannot be inherited as one.
+
+Two things give it back its status as a section: writing it in NumPy style,
+whose underline is unambiguous, or declaring it, which works in both styles
+and is described under {doc}`custom`.
 
 Prose that follows a Google-style section belongs to neither the section nor
 the next one, and is kept in place as a section with no title. It renders as

@@ -120,7 +120,7 @@ GENERAL_ARGUMENTS = (
     'inheritdescription',
     'extraparam',
     'custom',
-    'samecustom',
+    'sourcecustom',
     'sourceformat',
     'inheritcustom',
     'ignorecustom',
@@ -370,7 +370,7 @@ def _source_plan(options, declared, custom_args):
 
     An argument that names a declared section says so by naming it:
     ``inheritinputs=fn`` cannot mean anything unless `fn` is read with
-    ``Inputs`` declared. `samecustom` says which sources share the whole
+    ``Inputs`` declared. `sourcecustom` says which sources share the whole
     declaration, which is what `inheritall` and the other arguments that
     name no section need. `sourceformat` says which format a source is
     written in, for a docstring whose format cannot be detected.
@@ -396,7 +396,7 @@ def _source_plan(options, declared, custom_args):
     Raises
     ------
     DocShareError
-        If a source named by `samecustom` or `sourceformat` is an
+        If a source named by `sourcecustom` or `sourceformat` is an
         already-parsed document, or if a format is not one docshare
         supports.
     """
@@ -406,24 +406,24 @@ def _source_plan(options, declared, custom_args):
     for source, title in named:
         if title is not None and declared and title in declared:
             titles.setdefault(id(source), set()).add(title)
-    same = options.get('samecustom')
-    if same is not None and same is not False:
-        if isinstance(same, Mapping):
-            for key, value in same.items():
+    shared = options.get('sourcecustom')
+    if shared is not None and shared is not False:
+        if isinstance(shared, Mapping):
+            for key, value in shared.items():
                 title = normalize_title(key)
                 if not declared or title not in declared:
                     raise DocShareError(
-                        f'samecustom names the section {key!r}, which '
+                        f'sourcecustom names the section {key!r}, which '
                         f'custom= does not declare'
                     )
-                for source in _as_source_set(value, 'samecustom'):
+                for source in _as_source_set(value, 'sourcecustom'):
                     titles.setdefault(id(source), set()).add(title)
         else:
             every = set(declared or ())
-            if same is True:
+            if shared is True:
                 chosen = [source for (source, _) in named]
             else:
-                chosen = _as_source_set(same, 'samecustom')
+                chosen = _as_source_set(shared, 'sourcecustom')
             for source in chosen:
                 titles.setdefault(id(source), set()).update(every)
     source_format = options.get('sourceformat')
@@ -846,7 +846,7 @@ def docwrap(obj=None, /, **options):
         companions, and, when its title is a Python name, by arguments
         generated from it exactly as for a recognized section:
         ``Inputs`` offers `inheritinputs`, `ignoreinputs`, and `inputmap`.
-    samecustom : bool, object, sequence, or mapping, optional
+    sourcecustom : bool, object, sequence, or mapping, optional
         Which sources share the declaration. A source named by an argument
         that names a declared section is read with that section already,
         since the argument means nothing otherwise; this is for the

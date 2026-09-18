@@ -15,6 +15,27 @@ follows [semantic versioning](https://semver.org/spec/v2.0.0.html).
   source is supplied whose format has to be stated rather than detected.
 * Every example in the documentation is now self-contained and is executed by
   the test suite, so a page cannot demonstrate something that does not work.
+* Sections beyond the ones `docshare` recognizes can be declared per call, with
+  `custom=` on `docparse`, `docinfo` and `docwrap`. Each title either names the
+  recognized section it resembles --- borrowing whether its body holds items,
+  how they are identified, and the type that stands in for a missing one --- or
+  stands alone, which recognizes the title as a section and leaves its body
+  uninterpreted. A declared section is a section of its own, not another name
+  for what it resembles: the two may appear in one document and mean different
+  things, so it keeps its own title, is never merged, and is never checked
+  against the signature.
+
+  Nothing is registered. A declaration applies only to the call that makes it,
+  so one library cannot change how another library's docstrings are read.
+
+  `docwrap` addresses a declared section as `inheritcustom`, `ignorecustom` and
+  `custommap`, which take a title and so work for any section, and --- when the
+  title is a Python name --- by arguments generated from it exactly as for a
+  recognized one, so that `Inputs` offers `inheritinputs`, `ignoreinputs` and
+  `inputmap`. `sourcecustom` says which sources share the declaration, which
+  `inheritall` needs since it names no section, and `sourceformat` says which
+  format a source is written in. Together these remove the need to thread
+  `docparse` results through the library.
 * `inheritsummary` and `inheritdescription` inherit the text above the first
   section, which is not a section and so was not reachable before. `inheritall`
   implies both, so it now means all of a source's documentation rather than
@@ -43,6 +64,9 @@ follows [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+* The documentation cache is keyed by a `(format, custom, docstring)` triple
+  rather than a `(format, docstring)` pair, since one text read under two
+  declarations is two documents.
 * A docstring that opens with the documented object's own call signature, as
   NumPy's ufuncs do, no longer reads that line as the summary. It describes
   one object, so inheriting it would attach the wrong signature to something

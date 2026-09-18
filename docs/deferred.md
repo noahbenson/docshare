@@ -346,10 +346,14 @@ document from one format into the other.
 
 Work that is planned rather than deferred.
 
-## Sphinx documentation site
+## Sphinx documentation site --- DONE
 
-Build a Sphinx site under `docs/` and publish it to GitHub Pages from a
-workflow. The API reference can be generated from the package's own
-docstrings, which `docshare` composes, so the site doubles as a demonstration
-of the library on itself. The README, the specification, and this file are
-the natural starting content.
+Built under `docs/` and published to GitHub Pages by `.github/workflows/
+docs.yml`. The API reference is generated from the package's own NumPy-style
+docstrings through `sphinx.ext.napoleon`, so the site is rendered from the
+kind of documentation the library reads. The build treats warnings as errors,
+and the test suite builds it as well, so a broken reference fails rather than
+producing a broken page.
+
+The repository's Pages source must be set to GitHub Actions before the first
+deployment.

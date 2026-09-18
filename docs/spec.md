@@ -1317,7 +1317,7 @@ documentation.
 
 The implementation should provide a small exception hierarchy, for example:
 
-```python
+```text
 DocShareError
 ├── DocParseError
 ├── DocFormatError
@@ -1483,7 +1483,7 @@ It must not normalize away meaningful content.
 
 The test suite shall include at least:
 
-### Basic parsing
+## Basic parsing
 
 * empty docstrings;
 * summary-only documents;
@@ -1492,7 +1492,7 @@ The test suite shall include at least:
 * multiple sections;
 * unknown sections.
 
-### NumPy format
+## NumPy format
 
 * parameters;
 * grouped parameters;
@@ -1507,11 +1507,11 @@ The test suite shall include at least:
 * warnings;
 * multiline descriptions.
 
-### Google format
+## Google format
 
 Equivalent coverage for Google syntax.
 
-### Inheritance
+## Inheritance
 
 * one source;
 * multiple sources;
@@ -1523,13 +1523,13 @@ Equivalent coverage for Google syntax.
 * empty targets;
 * partial inheritance.
 
-### Grouped parameters
+## Grouped parameters
 
 * unchanged groups;
 * complete replacement;
 * illegal partial replacement.
 
-### Returns
+## Returns
 
 * named returns;
 * unnamed returns;
@@ -1538,7 +1538,7 @@ Equivalent coverage for Google syntax.
 * reordering;
 * explicit target replacement.
 
-### Signatures
+## Signatures
 
 * ordinary parameters;
 * positional-only parameters;
@@ -1548,7 +1548,7 @@ Equivalent coverage for Google syntax.
 * `extraparam`;
 * `parammap`.
 
-### Python object types
+## Python object types
 
 * functions;
 * instance methods;
@@ -1557,7 +1557,7 @@ Equivalent coverage for Google syntax.
 * properties;
 * classes.
 
-### Caching
+## Caching
 
 * `docinfo` after `docparse`;
 * `docinfo` without prior parsing;

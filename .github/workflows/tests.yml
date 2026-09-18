@@ -48,6 +48,10 @@ jobs:
             python-version: '3.10'
           - os: windows-latest
             python-version: '3.14'
+          # The free-threaded build, where the cache's synchronization is
+          # actually exercised in parallel rather than under the GIL.
+          - os: ubuntu-latest
+            python-version: '3.14t'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

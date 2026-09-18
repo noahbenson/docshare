@@ -8,6 +8,9 @@ follows [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+* A documentation site, built with Sphinx and published to GitHub Pages. The
+  README is now a summary that links to it.
+
 * Prose introducing a structured section is preserved rather than read as an
   item declaration. A section whose items are identified by name may open
   with a description of the section as a whole; it is kept on the section,

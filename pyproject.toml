@@ -58,8 +58,13 @@ test = [
     "numpy>=1.24",
     "absl-py>=1.4",
 ]
+docs = [
+    "sphinx>=7.2",
+    "furo>=2024.1.29",
+    "myst-parser>=2.0",
+]
 dev = [
-    "docshare[test]",
+    "docshare[test,docs]",
     "ruff>=0.6",
     "build>=1.2",
 ]
@@ -101,6 +106,7 @@ filterwarnings = ["error"]
 [tool.coverage.run]
 source = ["docshare"]
 branch = true
+omit = ["docs/conf.py"]
 
 [tool.coverage.report]
 exclude_also = [
@@ -116,6 +122,7 @@ exclude_also = [
 line-length = 79
 target-version = "py310"
 src = ["src", "tests"]
+extend-exclude = ["docs/_build"]
 
 [tool.ruff.format]
 quote-style = "single"
@@ -148,3 +155,5 @@ convention = "numpy"
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["D"]
+# Sphinx requires module-level configuration assignments after its imports.
+"docs/conf.py" = ["D100", "E402", "INP001"]

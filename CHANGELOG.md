@@ -6,6 +6,13 @@ follows [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+* Prose introducing a structured section is preserved rather than read as an
+  item declaration. A section whose items are identified by name may open
+  with a description of the section as a whole; it is kept on the section,
+  rendered ahead of the items, and is never inherited.
+
 ## [0.1.0]
 
 First release.

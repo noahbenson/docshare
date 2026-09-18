@@ -8,14 +8,11 @@ rediscovering it.
 Add to this file whenever an edge case is knowingly left unresolved.
 
 
-## 1. Section-level prose in a structured section
+## 1. Section-level prose in a structured section --- RESOLVED
 
-*Raised in phase 2. Specification section 31.*
+*Raised in phase 2; resolved after phase 8. Specification section 31.*
 
-The specification asks that section descriptions be preserved. In a
-structured section, `docshare` currently treats every line at column zero as
-an item declaration, so prose that introduces the section becomes a phantom
-item:
+A structured section may open with prose describing the section as a whole:
 
 ```text
 Parameters
@@ -26,24 +23,37 @@ x : int
     The x.
 ```
 
-The first line parses as an item whose name is `All of these are optional.`.
-`Section.text` is therefore always empty for a structured section; prose and
-opaque sections are unaffected and keep their bodies verbatim.
+Every line at column zero used to be read as an item declaration, so the
+first line became a parameter named after the sentence. In a Parameters
+section that later produced a confusing signature error; in an Attributes
+section, which has no signature to check against, it passed silently into the
+rendered docstring.
 
-The obstacle is that no non-heuristic rule separates such prose from a
-parameter documented with neither a type nor a description, which is legal.
-numpydoc has the same limitation. Candidate rules, none yet adopted:
+The note filed here said no non-heuristic rule separated prose from a
+parameter documented with neither a type nor a description. That was wrong:
+the rule is syntactic. A declaration either carries a type, which puts a
+colon on the line, or names parameters, which are Python identifiers
+optionally starred. Prose is neither. `docshare._lex.is_declaration` applies
+exactly that test, and `split_prose` takes the leading block that fails it.
 
-* treat a leading block as prose when it is followed by a blank line and no
-  line in it parses as a declaration with a type;
-* treat a leading block as prose when its first line ends with sentence
-  punctuation;
-* require the author to disambiguate, and document that a structured section
-  may not open with prose.
+Two boundaries make the rule safe:
 
-A fix touches `_numpy.parse_items`, `_google.parse_items`, and the renderer,
-which would need to emit `Section.text` before the items.
+* Only *leading* prose is recognized. Text after the items has the same shape
+  as a description line that lost its indentation, and choosing between them
+  would be the kind of guess the library avoids.
+* Only a section whose items are identified by *name* can carry prose. In a
+  section identified by position a line at column zero is a type, and a type
+  is free text: `array_like of int` is a perfectly good NumPy return type and
+  is indistinguishable from prose. Returns, Yields, Raises, and Warns
+  therefore keep their previous reading, which also preserves the Google
+  idiom of writing a return value as bare prose.
 
+A single bare identifier alone on a line, such as `None`, still reads as a
+declaration. That is ambiguous to a human reader too, and is left as it is.
+
+Section prose is the target's own and is never inherited: it describes the
+source's parameters, not the target's, for the same reason section 31 keeps a
+summary with the object that wrote it.
 
 ## 2. A parameter named after a section, declared with no type
 

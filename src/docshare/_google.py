@@ -25,7 +25,7 @@ from __future__ import annotations
 import re
 
 from ._exceptions import DocParseError
-from ._lex import iter_blocks
+from ._lex import iter_blocks, split_prose
 from ._model import Item
 from ._sections import IDENTITY_NAME
 
@@ -72,8 +72,9 @@ def parse_items(body, kind, section=None):
 
     Returns
     -------
-    tuple of Item
-        The parsed items, in the order they appear.
+    tuple of (tuple of str, tuple of Item)
+        Any prose introducing the section, and the parsed items in the order
+        they appear.
 
     Raises
     ------
@@ -81,9 +82,16 @@ def parse_items(body, kind, section=None):
         If a line in a section whose items are identified by name cannot be
         read as an item declaration.
     """
-    blocks = list(iter_blocks(body))
+    # See the note in docshare._numpy: prose is only distinguishable in a
+    # section whose items are named. A Returns section written as bare prose
+    # is one unnamed item, which is the idiom Google style uses for it.
+    if kind.identity == IDENTITY_NAME:
+        (prose, rest) = split_prose(body)
+    else:
+        (prose, rest) = ((), tuple(body))
+    blocks = list(iter_blocks(rest))
     if not blocks:
-        return ()
+        return (prose, ())
     if _DECLARATION.match(blocks[0][0]) is None:
         # A Returns or Yields section may be written as bare prose, with no
         # declaration at all; that is a single unnamed item. A section whose
@@ -95,10 +103,13 @@ def parse_items(body, kind, section=None):
                 f'declaration such as "name (type): description", but found '
                 f'{blocks[0][0]!r}'
             )
-        return (Item(names=(), type=None, description=tuple(body)),)
-    return tuple(
-        _parse_item(header, description, kind, section)
-        for (header, description) in blocks
+        return (prose, (Item(names=(), type=None, description=tuple(rest)),))
+    return (
+        prose,
+        tuple(
+            _parse_item(header, description, kind, section)
+            for (header, description) in blocks
+        ),
     )
 
 

@@ -125,11 +125,12 @@ def _plan(doc, format):
         position = index.get(target.name)
         if position is None:
             index[target.name] = len(plan)
-            plan.append(_Emit(title, tuple(section.items), (), True))
+            plan.append(_Emit(title, tuple(section.items), section.text, True))
         else:
             merged = plan[position]
             plan[position] = merged._replace(
-                items=merged.items + tuple(section.items)
+                items=merged.items + tuple(section.items),
+                text=merged.text or section.text,
             )
     return plan
 
@@ -143,6 +144,12 @@ def _write_numpy(emit):
     """Write one section in NumPy style."""
     body = []
     if emit.structured:
+        # Prose introducing the section comes before the items, separated by
+        # a blank line so that it reads as prose rather than a declaration.
+        if emit.text:
+            body.extend(emit.text)
+            if emit.items:
+                body.append('')
         for item in emit.items:
             body.extend(_numpy_item(item))
     else:
@@ -157,6 +164,10 @@ def _write_google(emit):
     """Write one section in Google style."""
     body = []
     if emit.structured:
+        if emit.text:
+            body.extend(emit.text)
+            if emit.items:
+                body.append('')
         for item in emit.items:
             body.extend(_google_item(item))
     else:

@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import re
 
-from ._lex import iter_blocks
+from ._lex import iter_blocks, split_prose
 from ._model import Item
 from ._sections import IDENTITY_NAME
 
@@ -66,13 +66,24 @@ def parse_items(body, kind):
 
     Returns
     -------
-    tuple of Item
-        The parsed items, in the order they appear.
+    tuple of (tuple of str, tuple of Item)
+        Any prose introducing the section, and the parsed items in the order
+        they appear.
     """
-    return tuple(
+    # Only a section whose items are named can carry prose: there a line at
+    # column zero is a list of identifiers, so prose is distinguishable. In
+    # a section identified by position the same line is a *type*, which is
+    # free text such as ``array_like of int``, and nothing tells it from
+    # prose.
+    if kind.identity == IDENTITY_NAME:
+        (prose, rest) = split_prose(body)
+    else:
+        (prose, rest) = ((), tuple(body))
+    items = tuple(
         _parse_item(header, description, kind)
-        for (header, description) in iter_blocks(body)
+        for (header, description) in iter_blocks(rest)
     )
+    return (prose, items)
 
 
 def _parse_item(header, description, kind):

@@ -33,8 +33,10 @@ __all__ = (
     'LexedSection',
     'clean',
     'detect_format',
+    'is_declaration',
     'iter_blocks',
     'lex',
+    'split_prose',
 )
 
 
@@ -53,6 +55,10 @@ _NUMPY_UNDERLINE = re.compile(r'^-{3,}[ \t]*$')
 #         x (float): The x.
 #
 _GOOGLE_TITLE = re.compile(r'^([A-Za-z][A-Za-z0-9 \-]*?)[ \t]*:[ \t]*$')
+
+# A documented name is a Python identifier, optionally starred for a variadic
+# parameter. Several may be declared at once, separated by commas.
+_DECLARED_NAME = re.compile(r'^\*{0,2}[A-Za-z_][A-Za-z0-9_]*$')
 
 
 @dataclass(frozen=True, slots=True)
@@ -368,3 +374,72 @@ def detect_format(lexed):
         f'NumPy-style sections ({numpy}) with Google-style sections '
         f'({google}). Pass an explicit format= to say which was intended.'
     )
+
+
+def is_declaration(line):
+    """Return whether a line opens a documentation item.
+
+    A structured section may begin with prose describing the section as a
+    whole before its items start. Telling the two apart is syntactic rather
+    than a guess: an item is declared either with a type, which puts a colon
+    on the line, or by naming one or more parameters, which are Python
+    identifiers. Ordinary prose is neither.
+
+    Parameters
+    ----------
+    line : str
+        A line at column zero of a section body.
+
+    Returns
+    -------
+    bool
+        Whether the line declares an item rather than being prose.
+    """
+    text = line.strip()
+    if not text:
+        return False
+    if ':' in text:
+        return True
+    parts = [part.strip() for part in text.split(',')]
+    return all(_DECLARED_NAME.match(part) for part in parts if part)
+
+
+def split_prose(lines):
+    """Split a structured section body into leading prose and its items.
+
+    Only *leading* prose is recognized. Text after the items has the same
+    shape as a description line that lost its indentation, and guessing
+    between the two would be exactly the kind of ambiguity `docshare` avoids.
+
+    Parameters
+    ----------
+    lines : sequence of str
+        The dedented lines of a structured section body.
+
+    Returns
+    -------
+    tuple of (tuple of str, tuple of str)
+        The prose lines, and the remaining lines that declare the items.
+    """
+    for position, line in enumerate(lines):
+        if not line.strip() or line[:1].isspace():
+            continue
+        if is_declaration(line):
+            return (
+                _trim_blank(tuple(lines[:position])),
+                tuple(lines[position:]),
+            )
+        # The first line at column zero is prose, so everything up to the
+        # next declaration belongs with it.
+        for later, candidate in enumerate(lines[position:], position):
+            if (
+                candidate.strip()
+                and not candidate[:1].isspace()
+                and is_declaration(candidate)
+            ):
+                return (
+                    _trim_blank(tuple(lines[:later])),
+                    tuple(lines[later:]),
+                )
+        return (_trim_blank(tuple(lines)), ())
+    return ((), tuple(lines))

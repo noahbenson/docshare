@@ -191,7 +191,7 @@ def test_an_item_may_have_no_description():
 def test_an_empty_google_body_yields_no_items():
     # The lexer never produces this, since a Google header requires an
     # indented body; the item parser must still cope with it.
-    assert google_parse_items((), section_kind('parameters')) == ()
+    assert google_parse_items((), section_kind('parameters')) == ((), ())
 
 
 # Errors #####################################################################
@@ -254,15 +254,30 @@ def test_the_ambiguity_error_suggests_an_explicit_format():
     assert 'format=' in str(info.value)
 
 
+def test_prose_in_a_google_parameter_section_is_prose_not_an_error():
+    # A line that declares nothing is a description of the section.
+    doc = parse_document('S.\n\nArgs:\n    just some prose\n')
+    section = doc.section('parameters')
+    assert section.text == ('just some prose',)
+    assert section.items == ()
+
+
 def test_an_unparseable_google_parameter_is_an_error():
+    # A bare name is a declaration in NumPy style but not in Google style,
+    # where an item always carries a colon.
     with pytest.raises(DocParseError, match='Args'):
-        parse_document('S.\n\nArgs:\n    just some prose\n')
+        parse_document('S.\n\nArgs:\n    x\n')
 
 
 def test_the_google_parse_error_shows_the_offending_line():
     with pytest.raises(DocParseError) as info:
-        parse_document('S.\n\nArgs:\n    just some prose\n')
-    assert 'just some prose' in str(info.value)
+        parse_document('S.\n\nArgs:\n    x\n')
+    assert "'x'" in str(info.value)
+
+
+def test_prose_does_not_excuse_a_malformed_declaration_after_it():
+    with pytest.raises(DocParseError, match='Args'):
+        parse_document('S.\n\nArgs:\n    A note.\n\n    x\n')
 
 
 def test_a_later_unparseable_google_item_is_an_error():

@@ -96,7 +96,7 @@ def _build_section(lexed):
     if not kind.structured:
         return Section(name=lexed.name, kind=kind.name, text=lexed.body)
     if lexed.style == 'numpy':
-        items = _numpy.parse_items(lexed.body, kind)
+        (text, items) = _numpy.parse_items(lexed.body, kind)
     else:
-        items = _google.parse_items(lexed.body, kind, lexed.name)
-    return Section(name=lexed.name, kind=kind.name, items=items)
+        (text, items) = _google.parse_items(lexed.body, kind, lexed.name)
+    return Section(name=lexed.name, kind=kind.name, items=items, text=text)

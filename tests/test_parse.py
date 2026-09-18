@@ -313,3 +313,20 @@ def test_a_named_declaration_is_still_split():
     item = doc.section('parameters').items[0]
     assert item.names == ('x',)
     assert item.type == 'int'
+
+
+# Prose that follows a Google section ########################################
+
+
+def test_trailing_prose_parses_as_an_untitled_opaque_section():
+    doc = parse_document('S.\n\nArgs:\n    x (int): X.\n\nTrailing prose.\n')
+    assert [s.name for s in doc.sections] == ['Args', '']
+    tail = doc.sections[1]
+    assert tail.opaque
+    assert tail.text == ('Trailing prose.',)
+    assert tail.items == ()
+
+
+def test_the_section_before_trailing_prose_is_unaffected():
+    doc = parse_document('S.\n\nArgs:\n    x (int): X.\n\nTrailing prose.\n')
+    assert [i.names for i in doc.section('parameters').items] == [('x',)]

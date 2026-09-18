@@ -259,7 +259,8 @@ def _from_inheritall(value, include_opaque):
         for section in docparse(source).sections:
             if section.kind is not None:
                 inherits.setdefault(section.kind, []).append(source)
-            elif include_opaque:
+            elif include_opaque and section.name:
+                # A prose block between sections has no name to ask for.
                 opaque.append((source, section.name))
     return ({k: tuple(v) for (k, v) in inherits.items()}, tuple(opaque))
 

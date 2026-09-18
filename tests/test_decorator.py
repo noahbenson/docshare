@@ -1233,3 +1233,21 @@ def test_a_dead_binding_no_longer_passes_silently():
     with pytest.raises(DocMappingError):
         docshare(target, format='numpy', inheritparams=(source, 0))
     assert target.__doc__ == original
+
+
+def test_inheritall_does_not_pick_up_untitled_prose():
+    def base(x):
+        """B.
+
+        Args:
+            x (int): The x.
+
+        Trailing prose that is not a section.
+        """
+
+    @docshare(format='google', inheritall=base, inheritother=True)
+    def target(x):
+        """T."""
+
+    assert 'The x.' in target.__doc__
+    assert 'Trailing prose' not in target.__doc__

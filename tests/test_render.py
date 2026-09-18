@@ -537,3 +537,26 @@ def test_an_item_with_no_identity_in_a_section_that_supplies_no_type():
     assert render_document(doc) == (
         'Parameters\n----------\nOrphaned text.\n    And more.'
     )
+
+
+# Untitled prose blocks (from a Google section that ended) ###################
+
+
+def test_an_untitled_section_renders_as_bare_prose():
+    text = 'S.\n\nArgs:\n    x (int): X.\n\nTrailing prose.'
+    assert render_document(parse_document(text)) == text
+
+
+def test_an_untitled_section_survives_conversion_to_numpy():
+    doc = parse_document('S.\n\nArgs:\n    x (int): X.\n\nTrailing prose.')
+    out = render_document(doc, format='numpy')
+    assert out.endswith('Trailing prose.')
+    assert 'Parameters\n----------\nx : int' in out
+
+
+def test_prose_between_sections_keeps_its_position():
+    text = (
+        'S.\n\nArgs:\n    x (int): X.\n\nBetween them.\n\n'
+        'Returns:\n    int: The result.'
+    )
+    assert render_document(parse_document(text)) == text

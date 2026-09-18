@@ -337,3 +337,61 @@ def test_another_underline_character_is_not_a_header():
     # dashes open a section, so a subsection can avoid the split.
     text = 'S.\n\nNotes\n-----\nProse.\n\nBackground\n~~~~~~~~~~\nMore.\n'
     assert [s.name for s in lex(text).sections] == ['Notes']
+
+
+# Google sections end where the indentation does ############################
+
+GOOGLE_WITH_TAIL = (
+    'Summary.\n'
+    '\n'
+    'Attributes:\n'
+    '    name: the name.\n'
+    '    value: the value.\n'
+    '\n'
+    'Trailing prose that belongs to the class, not to the section.\n'
+    'It continues over two lines.\n'
+)
+
+
+def test_a_google_section_ends_when_the_indentation_does():
+    lexed = lex(GOOGLE_WITH_TAIL)
+    assert lexed.sections[0].name == 'Attributes'
+    assert lexed.sections[0].body == ('name: the name.', 'value: the value.')
+
+
+def test_trailing_prose_becomes_a_section_with_no_title():
+    lexed = lex(GOOGLE_WITH_TAIL)
+    assert len(lexed.sections) == 2
+    assert lexed.sections[1].name == ''
+    assert lexed.sections[1].body == (
+        'Trailing prose that belongs to the class, not to the section.',
+        'It continues over two lines.',
+    )
+
+
+def test_prose_between_two_google_sections_is_kept_in_place():
+    text = (
+        'S.\n\nArgs:\n    x (int): X.\n\n'
+        'A paragraph between them.\n\n'
+        'Returns:\n    int: The result.\n'
+    )
+    names = [s.name for s in lex(text).sections]
+    assert names == ['Args', '', 'Returns']
+
+
+def test_a_numpy_section_still_runs_to_the_next_header():
+    # NumPy bodies sit at column zero, so the rule does not apply to them.
+    text = 'S.\n\nNotes\n-----\nA note.\nStill the note.\n'
+    lexed = lex(text)
+    assert len(lexed.sections) == 1
+    assert lexed.sections[0].body == ('A note.', 'Still the note.')
+
+
+def test_a_google_section_with_no_trailing_prose_gains_no_extra_section():
+    lexed = lex('S.\n\nArgs:\n    x (int): X.\n')
+    assert [s.name for s in lexed.sections] == ['Args']
+
+
+def test_a_blank_line_alone_is_not_trailing_prose():
+    lexed = lex('S.\n\nArgs:\n    x (int): X.\n\n\n')
+    assert [s.name for s in lexed.sections] == ['Args']

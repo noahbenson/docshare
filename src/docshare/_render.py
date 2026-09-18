@@ -163,6 +163,9 @@ def _write_numpy(emit):
             body.extend(_numpy_item(item, emit.placeholder))
     else:
         body.extend(emit.text)
+    if not emit.title:
+        # A block of prose between sections has no title to write.
+        return list(body)
     if not body:
         # A section with no content still exists; NumPy can express that.
         return [emit.title, '-' * len(emit.title)]
@@ -181,6 +184,8 @@ def _write_google(emit):
             body.extend(_google_item(item))
     else:
         body.extend(emit.text)
+    if not emit.title:
+        return list(body)
     if not body:
         # A Google header is only a header when an indented body follows it,
         # so an empty section cannot be written in this format.

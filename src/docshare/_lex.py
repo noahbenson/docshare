@@ -69,7 +69,9 @@ class LexedSection:
     Attributes
     ----------
     name : str
-        The section title as written, without its underline or colon.
+        The section title as written, without its underline or colon. This
+        is empty for a block of prose that follows a Google-style section,
+        which has no title of its own.
     style : str
         The header style this section was written with, either ``'numpy'``
         or ``'google'``.
@@ -239,6 +241,21 @@ def _scan_google(lines, first_numpy):
     return found
 
 
+def _google_body_end(lines, start, limit):
+    """Return where a Google section body ends.
+
+    A Google section is written as an indented block beneath its header, so
+    it ends where the indentation returns to column zero. Running it to the
+    next header instead would swallow any prose that follows it, which real
+    docstrings place there routinely.
+    """
+    for position in range(start, limit):
+        line = lines[position]
+        if line.strip() and not line[:1].isspace():
+            return position
+    return limit
+
+
 def lex(text, styles=None):
     """Split a docstring into its summary, description, and sections.
 
@@ -276,11 +293,26 @@ def lex(text, styles=None):
     sections = []
     for position, (_, name, style, body_start) in enumerate(headers):
         if position + 1 < len(headers):
-            body_stop = headers[position + 1][0]
+            next_start = headers[position + 1][0]
         else:
-            body_stop = len(lines)
+            next_start = len(lines)
+        if style == 'google':
+            body_stop = _google_body_end(lines, body_start, next_start)
+        else:
+            # A NumPy section body sits at column zero, so it runs to the
+            # next header.
+            body_stop = next_start
         body = _dedent(_trim_blank(lines[body_start:body_stop]))
         sections.append(LexedSection(name=name, style=style, body=body))
+        trailing = _trim_blank(lines[body_stop:next_start])
+        if trailing:
+            # Prose between one section and the next belongs to neither. It
+            # is kept in place as a section with no title, which renders as
+            # bare text and can never be inherited, since there is no name
+            # by which to ask for it.
+            sections.append(
+                LexedSection(name='', style=style, body=_dedent(trailing))
+            )
     summary, description = _split_preamble(_trim_blank(preamble))
     return LexedDoc(
         summary=summary,

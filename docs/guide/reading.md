@@ -82,5 +82,7 @@ docshare.doccache.maxsize = 8192
 docshare.clear_docinfo()
 ```
 
-It is the library's own working state, so putting a document into it that
-does not match its key will produce documentation that matches nothing.
+A key is checked on every access, so a bare docstring used as one is an error
+rather than an entry that is written and never read again. It is otherwise
+the library's own working state: putting a document into it that does not
+match its key will produce documentation that matches nothing.

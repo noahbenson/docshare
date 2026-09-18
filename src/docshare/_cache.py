@@ -63,6 +63,49 @@ __all__ = ('DocCache', 'clear_docinfo', 'doccache', 'docinfo', 'docparse')
 DEFAULT_MAXSIZE = 2048
 
 
+def _check_key(key):
+    """Verify that a cache key is a ``(format, documentation)`` pair.
+
+    A dictionary accepts any hashable key, so a bare docstring used as one
+    would be stored without complaint and never read again, leaving the cache
+    quietly wrong rather than obviously broken. The shape is therefore
+    checked on every access.
+
+    Parameters
+    ----------
+    key : object
+        The key to check.
+
+    Returns
+    -------
+    None
+
+    Raises
+    ------
+    TypeError
+        If the key is not a ``(format, documentation)`` pair.
+    ValueError
+        If the format is not one `docshare` supports, or ``None``.
+    """
+    if not isinstance(key, tuple) or len(key) != 2:
+        raise TypeError(
+            f'a documentation cache key is a (format, documentation) pair, '
+            f'not {key!r}; the format is None for a request that let the '
+            f'format be detected'
+        )
+    (format, text) = key
+    if format is not None and format not in SUPPORTED_FORMATS:
+        raise ValueError(
+            f'{format!r} is not a documentation format; expected None or '
+            f'one of {", ".join(map(repr, SUPPORTED_FORMATS))}'
+        )
+    if text is not None and not isinstance(text, str):
+        raise TypeError(
+            f'the documentation half of a cache key is a string or None, '
+            f'not {type(text).__name__}'
+        )
+
+
 class DocCache(MutableMapping):
     """A bounded cache of parsed documentation.
 
@@ -77,6 +120,11 @@ class DocCache(MutableMapping):
     have legitimate uses; it is nonetheless the library's own working state,
     and putting a document into it that does not correspond to its key will
     produce documentation that does not correspond to anything.
+
+    A key is a ``(format, documentation)`` pair, and is checked on every
+    access. A dictionary would accept a bare docstring as a key without
+    complaint, store it, and never read it again; checking turns that into an
+    error where it happens rather than a cache that is quietly wrong.
 
     Every operation is atomic with respect to other threads. Looking an entry
     up also marks it as recently used, and discarding entries walks the whole
@@ -122,12 +170,14 @@ class DocCache(MutableMapping):
             self._entries.popitem(last=False)
 
     def __getitem__(self, key):
+        _check_key(key)
         with self._lock:
             document = self._entries[key]
             self._entries.move_to_end(key)
             return document
 
     def __setitem__(self, key, value):
+        _check_key(key)
         with self._lock:
             if self._maxsize == 0:
                 return
@@ -136,6 +186,7 @@ class DocCache(MutableMapping):
             self._evict()
 
     def __delitem__(self, key):
+        _check_key(key)
         with self._lock:
             del self._entries[key]
 
@@ -149,6 +200,7 @@ class DocCache(MutableMapping):
             return len(self._entries)
 
     def __contains__(self, key):
+        _check_key(key)
         with self._lock:
             return key in self._entries
 

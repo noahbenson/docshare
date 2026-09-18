@@ -423,8 +423,8 @@ def test_the_cache_reports_its_size_and_bound():
 
 def test_an_independent_cache_can_be_made():
     other = DocCache(maxsize=1)
-    other['a'] = Document(summary='A.')
-    other['b'] = Document(summary='B.')
+    other[(None, 'a')] = Document(summary='A.')
+    other[(None, 'b')] = Document(summary='B.')
     assert len(other) == 1
     assert len(doccache) == 0
 
@@ -605,3 +605,90 @@ def test_source_document_does_not_read_a_documents_own_class_docstring():
     doc = docparse(PARAMS)
     assert source_document(doc).section('parameters') is not None
     assert 'semantic representation' not in str(source_document(doc).summary)
+
+
+# Cache keys are checked #####################################################
+
+
+@pytest.mark.parametrize(
+    'key',
+    [
+        'a bare docstring',
+        42,
+        ('numpy',),
+        (None, 'a', 'b'),
+        ['numpy', 'a'],
+        None,
+    ],
+)
+def test_a_malformed_key_is_rejected(key):
+    # A dictionary would accept any of these and never read it back, leaving
+    # the cache quietly wrong instead of obviously broken.
+    with pytest.raises(TypeError):
+        doccache[key] = Document()
+
+
+def test_an_unsupported_format_in_a_key_is_rejected():
+    with pytest.raises(ValueError, match='not a documentation format'):
+        doccache[('rest', 'text')] = Document()
+
+
+def test_a_non_string_docstring_in_a_key_is_rejected():
+    with pytest.raises(TypeError, match='string or None'):
+        doccache[(None, 42)] = Document()
+
+
+@pytest.mark.parametrize(
+    'key',
+    [(None, 'text'), ('numpy', 'text'), ('google', 'text'), (None, None)],
+)
+def test_every_well_formed_key_is_accepted(key):
+    doccache[key] = Document(summary='X.')
+    assert key in doccache
+    assert doccache[key].summary == 'X.'
+    del doccache[key]
+
+
+@pytest.mark.parametrize('operation', ['get', 'contains', 'delete'])
+def test_reading_with_a_malformed_key_is_rejected_too(operation):
+    # Otherwise a bad key would simply miss, which is how the mistake would
+    # go unnoticed in the first place.
+    with pytest.raises(TypeError):
+        if operation == 'get':
+            doccache['bare']
+        elif operation == 'contains':
+            'bare' in doccache  # noqa: B015 - the lookup is the point
+        else:
+            del doccache['bare']
+
+
+def test_every_key_the_library_writes_is_well_formed():
+    # Exercises the paths that write to the cache, then checks what landed.
+    from docshare._cache import _check_key
+
+    clear_docinfo()
+    docinfo(make_function())
+    docinfo(make_function(OTHER), format='numpy')
+    docinfo('S.\n\nArgs:\n    x (int): X.\n', format='google')
+
+    def base(x):
+        """B.
+
+        Parameters
+        ----------
+        x : int
+            The x.
+        """
+
+    @docwrap(format='numpy', inheritparams=base)
+    def wrapper(x):
+        """W."""
+
+    @docwrap
+    def bare(x):
+        """Bare."""
+
+    assert len(doccache) >= 5
+    for key in doccache:
+        _check_key(key)
+        assert isinstance(key, tuple) and len(key) == 2

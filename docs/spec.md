@@ -1110,10 +1110,18 @@ The document model shall preserve:
 
 Unless explicitly requested by an inheritance operation, the target's
 summary and description shall not be replaced by source documentation.
+Ordinary section inheritance must not implicitly replace them.
 
-A future generalized composition interface may permit inheritance of these
-components, but ordinary section inheritance must not implicitly replace
-them.
+They are requested by name, as `inheritsummary` and `inheritdescription`,
+and by `inheritall`, which means all of a source's documentation. As with
+every other inheritance, a component the target documents for itself is
+kept.
+
+A document that opens with the documented object's own call signature, as
+NumPy's ufuncs do, shall not treat that line as a summary. Such a line
+describes one object and is therefore never inheritable; it shall be
+retained apart from the summary so that the document still round-trips, and
+rendered back at the head of the document it was read from.
 
 ---
 
@@ -1414,7 +1422,8 @@ The generalized interface should support the same concepts:
 # 44. `inheritall`
 
 The API should support a convenience mechanism for inheriting all safely
-inheritable documentation sections from a source.
+inheritable documentation from a source: every recognized section, and the
+summary and description described in section 31.
 
 Conceptually:
 

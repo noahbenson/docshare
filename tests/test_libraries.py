@@ -325,3 +325,42 @@ def test_a_numpy_source_can_be_rendered_as_google():
     assert 'Args:' in out
     assert 'a (array_like):' in out
     assert docparse(out).format == 'google'
+
+
+# The summary and the description ############################################
+
+
+def test_a_ufunc_signature_line_is_not_read_as_a_summary():
+    doc = docparse(numpy.log)
+    assert doc.meta['signature'].startswith('log(')
+    assert doc.summary == 'Natural logarithm, element-wise.'
+
+
+def test_a_ufunc_signature_line_is_written_back_out():
+    doc = docparse(numpy.log)
+    assert render_document(doc).startswith(doc.meta['signature'])
+
+
+def test_inheritall_from_a_ufunc_takes_its_header_text():
+    @docwrap(inheritall=numpy.log, render='google')
+    def google_log(x, /, out=None, *, where=True, **kwargs):
+        return numpy.log(x, out=out, where=where, **kwargs)
+
+    body = google_log.__doc__
+    assert body.startswith('Natural logarithm, element-wise.')
+    assert 'The natural logarithm `log` is the inverse' in body
+    assert 'Args:' in body
+    # The signature belongs to numpy.log alone and is never handed on.
+    assert "casting='same_kind'" not in body
+
+
+def test_a_wrapper_keeps_its_own_summary_over_an_inherited_one():
+    @docwrap(inheritall=numpy.log, render='numpy')
+    def our_log(x, /, out=None, *, where=True, **kwargs):
+        """Take a logarithm, our way."""
+        return numpy.log(x, out=out, where=where, **kwargs)
+
+    body = our_log.__doc__
+    assert body.startswith('Take a logarithm, our way.')
+    assert 'Natural logarithm, element-wise.' not in body
+    assert 'Parameters\n----------' in body

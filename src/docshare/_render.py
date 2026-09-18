@@ -85,6 +85,12 @@ def render_document(doc, format=None):
         # Without sections there is nothing format-specific to write.
         format = SUPPORTED_FORMATS[0]
     lines = []
+    signature = doc.meta.get('signature')
+    if signature:
+        # A document that opened with the object's own call signature opens
+        # with it again, so that what was read is what is written.
+        lines.append(signature)
+        lines.append('')
     if doc.summary:
         lines.extend(doc.summary.split('\n'))
     if doc.description:

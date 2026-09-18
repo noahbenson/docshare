@@ -41,7 +41,22 @@ from ._signature import (
     strip_stars,
 )
 
-__all__ = ('Operation', 'compose')
+__all__ = ('DESCRIPTION', 'SUMMARY', 'Operation', 'compose')
+
+
+#: The operation kind that inherits a source's summary.
+#:
+#: A document's summary and description are not sections, so they cannot be
+#: named by a section kind. They are named by these two sentinels instead,
+#: which begin with a character no section kind or opaque section title can
+#: begin with, so that neither can ever be mistaken for the other.
+SUMMARY = '@summary'
+
+#: The operation kind that inherits a source's description.
+DESCRIPTION = '@description'
+
+#: The operation kinds that name a document component rather than a section.
+COMPONENTS = (SUMMARY, DESCRIPTION)
 
 
 class Operation(NamedTuple):
@@ -50,8 +65,9 @@ class Operation(NamedTuple):
     Attributes
     ----------
     kind : str or None
-        The normalized section kind to inherit, or ``None`` for an opaque
-        section identified by `name` instead.
+        The normalized section kind to inherit, or one of `SUMMARY` and
+        `DESCRIPTION` for a component that is not a section, or ``None`` for
+        an opaque section identified by `name` instead.
     name : str or None
         The title of the opaque section to inherit, when `kind` is ``None``.
     sources : tuple
@@ -457,6 +473,31 @@ def _inherit_opaque(doc, operation):
     return None
 
 
+def _inherit_summary(doc, operation):
+    """Take a source's summary, and only when the target has none.
+
+    The target's own summary is never replaced, so this reports ``None``
+    both when there is nothing to inherit and when there is nothing to
+    inherit into.
+    """
+    if doc.summary:
+        return None
+    for spec in reversed(_resolve_sources(operation.sources)):
+        if spec.doc.summary:
+            return spec.doc.summary
+    return None
+
+
+def _inherit_description(doc, operation):
+    """Take a source's description, and only when the target has none."""
+    if doc.description:
+        return None
+    for spec in reversed(_resolve_sources(operation.sources)):
+        if spec.doc.description:
+            return spec.doc.description
+    return None
+
+
 def compose(obj, doc, operations, *, extraparam=None):
     """Compose a document from its own documentation and its sources.
 
@@ -477,7 +518,8 @@ def compose(obj, doc, operations, *, extraparam=None):
     -------
     Document
         The composed document. The target's summary and description are
-        never replaced, per specification section 31.
+        replaced only by an operation that asks for them by name, per
+        specification section 31.
 
     Raises
     ------
@@ -488,7 +530,19 @@ def compose(obj, doc, operations, *, extraparam=None):
         If a bound source does not document the item it was bound to.
     """
     sections = list(doc.sections)
+    summary = doc.summary
+    description = doc.description
     for operation in operations:
+        if operation.kind == SUMMARY:
+            inherited = _inherit_summary(doc, operation)
+            if inherited is not None:
+                summary = inherited
+            continue
+        if operation.kind == DESCRIPTION:
+            inherited = _inherit_description(doc, operation)
+            if inherited is not None:
+                description = inherited
+            continue
         if operation.kind is None:
             section = _inherit_opaque(doc, operation)
             if section is not None:
@@ -507,7 +561,11 @@ def compose(obj, doc, operations, *, extraparam=None):
                 obj, doc, operation, kind.name, kind.identity
             )
         sections = _replace_items(sections, kind, items, doc)
-    return doc.evolve(sections=tuple(sections))
+    return doc.evolve(
+        summary=summary,
+        description=description,
+        sections=tuple(sections),
+    )
 
 
 def _replace_items(sections, kind, items, doc):

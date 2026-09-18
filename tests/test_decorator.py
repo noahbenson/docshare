@@ -441,6 +441,114 @@ def test_inheritall_takes_every_recognized_section():
     assert 'A note from the source.' in target.__doc__
 
 
+def described(foo, bar=1):
+    """Compute a described quux.
+
+    The long account of what a described quux is, which is the description
+    rather than the summary.
+
+    Parameters
+    ----------
+    foo : float
+        The foo parameter.
+    bar : float, optional
+        The bar parameter; the default is 1.
+    """
+
+
+def test_inheritall_takes_the_summary_and_the_description():
+    def target(foo, bar=1):
+        pass
+
+    docwrap(target, format='numpy', inheritall=described)
+    assert target.__doc__.startswith('Compute a described quux.')
+    assert 'The long account' in target.__doc__
+    assert 'The foo parameter.' in target.__doc__
+
+
+def test_inheritsummary_takes_only_the_summary():
+    def target(foo, bar=1):
+        pass
+
+    docwrap(target, format='numpy', inheritsummary=described)
+    assert target.__doc__ == 'Compute a described quux.'
+
+
+def test_inheritdescription_takes_only_the_description():
+    def target(foo, bar=1):
+        pass
+
+    docwrap(target, format='numpy', inheritdescription=described)
+    assert 'The long account' in target.__doc__
+    assert 'Compute a described quux.' not in target.__doc__
+
+
+def test_the_targets_own_summary_is_kept():
+    def target(foo, bar=1):
+        """Our own summary."""
+
+    docwrap(target, format='numpy', inheritall=described)
+    assert target.__doc__.startswith('Our own summary.')
+    assert 'Compute a described quux.' not in target.__doc__
+    # The description is the target's own too: it has none, so it takes one.
+    assert 'The long account' in target.__doc__
+
+
+def test_the_targets_own_description_is_kept():
+    def target(foo, bar=1):
+        """Our own summary.
+
+        Our own description.
+        """
+
+    docwrap(target, format='numpy', inheritall=described)
+    assert 'Our own description.' in target.__doc__
+    assert 'The long account' not in target.__doc__
+
+
+def test_inheriting_a_section_does_not_take_the_summary():
+    def target(foo, bar=1):
+        pass
+
+    docwrap(target, format='numpy', inheritparams=described)
+    assert 'Compute a described quux.' not in target.__doc__
+    assert 'The foo parameter.' in target.__doc__
+
+
+def test_the_summary_comes_from_the_last_source_that_has_one():
+    def bare(foo, bar=1):
+        pass
+
+    def target(foo, bar=1):
+        pass
+
+    docwrap(target, format='numpy', inheritsummary=(described, bare))
+    assert target.__doc__ == 'Compute a described quux.'
+
+
+def test_inheritsummary_from_a_source_without_one_does_nothing():
+    def bare(foo, bar=1):
+        pass
+
+    def target(foo, bar=1):
+        pass
+
+    docwrap(target, format='numpy', inheritsummary=bare, inheritparams=source)
+    assert target.__doc__.startswith('Parameters')
+
+
+def test_inheritsummary_accepts_a_parsed_document():
+    def target(foo, bar=1):
+        pass
+
+    docwrap(
+        target,
+        format='numpy',
+        inheritsummary=docinfo(described, format='numpy'),
+    )
+    assert target.__doc__ == 'Compute a described quux.'
+
+
 def test_inheritall_leaves_unrecognized_sections_alone():
     def target(foo, bar=1):
         """T."""

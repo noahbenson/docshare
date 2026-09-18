@@ -15,6 +15,11 @@ follows [semantic versioning](https://semver.org/spec/v2.0.0.html).
   source is supplied whose format has to be stated rather than detected.
 * Every example in the documentation is now self-contained and is executed by
   the test suite, so a page cannot demonstrate something that does not work.
+* `inheritsummary` and `inheritdescription` inherit the text above the first
+  section, which is not a section and so was not reachable before. `inheritall`
+  implies both, so it now means all of a source's documentation rather than
+  all of it below the first line. What the target documents for itself is kept,
+  as everywhere else.
 
 * Prose introducing a structured section is preserved rather than read as an
   item declaration. A section whose items are identified by name may open
@@ -23,6 +28,11 @@ follows [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+* A docstring that opens with the documented object's own call signature, as
+  NumPy's ufuncs do, no longer reads that line as the summary. It describes
+  one object, so inheriting it would attach the wrong signature to something
+  else; it is kept aside, written back out for the object it was read from,
+  and never inherited.
 * The decorator is named `docwrap`. The package is still `docshare`; the
   decorator wraps one object's documentation around another's, and the two
   no longer shadow each other on import.

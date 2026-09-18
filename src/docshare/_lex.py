@@ -49,6 +49,18 @@ __all__ = (
 _NUMPY_TITLE = re.compile(r'^([A-Za-z][A-Za-z0-9 \-]*?)[ \t]*$')
 _NUMPY_UNDERLINE = re.compile(r'^-{3,}[ \t]*$')
 
+# Some documentation opens with the object's own call signature instead of a
+# summary. NumPy's ufuncs are the usual example:
+#
+#     log(x, /, out=None, *, where=True, ...[, signature])
+#
+#     Natural logarithm, element-wise.
+#
+# That line describes the object it was written for and no other, so it is
+# not part of the summary and must never be inherited as one. It is kept
+# aside for rendering so that the document still round-trips exactly.
+_SIGNATURE = re.compile(r'^(?:[\w., ]+=)?\s*[\w.]+\(.*\)$')
+
 # A Google section header is a title followed by a colon, with an indented
 # body beneath it:
 #
@@ -99,12 +111,17 @@ class LexedDoc:
     styles : frozenset of str
         The header styles that were observed. This is empty for a document
         with no sections, which belongs to neither format.
+    signature : str or None
+        The call signature the document opens with, if it opens with one.
+        This is not part of the summary, because it describes the one object
+        it was written for.
     """
 
     summary: str | None
     description: tuple[str, ...]
     sections: tuple[LexedSection, ...]
     styles: frozenset
+    signature: str | None = None
 
 
 def clean(text):
@@ -313,13 +330,52 @@ def lex(text, styles=None):
             sections.append(
                 LexedSection(name='', style=style, body=_dedent(trailing))
             )
-    summary, description = _split_preamble(_trim_blank(preamble))
+    (signature, preamble) = _split_signature(
+        _trim_blank(preamble), bool(sections)
+    )
+    summary, description = _split_preamble(preamble)
     return LexedDoc(
         summary=summary,
         description=description,
         sections=tuple(sections),
         styles=frozenset(s.style for s in sections),
+        signature=signature,
     )
+
+
+def _split_signature(lines, has_sections):
+    """Split a leading call-signature line off the preamble.
+
+    The line is recognized the way `numpydoc` recognizes it: the opening
+    paragraph, joined into one line, reads as a call. A document that is
+    nothing but such a line is left alone, since taking its only text away
+    would leave it with no summary at all rather than a better one.
+
+    Parameters
+    ----------
+    lines : sequence of str
+        The trimmed lines before the first section.
+    has_sections : bool
+        Whether the document has sections, which is documentation enough for
+        the leading line to be a signature rather than the whole story.
+
+    Returns
+    -------
+    tuple of (str or None, tuple of str)
+        The signature, if there is one, and the remaining preamble lines.
+    """
+    if not lines:
+        return (None, ())
+    stop = 0
+    while stop < len(lines) and lines[stop].strip():
+        stop += 1
+    joined = ' '.join(line.strip() for line in lines[:stop]).strip()
+    if not _SIGNATURE.match(joined):
+        return (None, tuple(lines))
+    rest = _trim_blank(lines[stop:])
+    if not rest and not has_sections:
+        return (None, tuple(lines))
+    return (joined, tuple(rest))
 
 
 def _split_preamble(lines):

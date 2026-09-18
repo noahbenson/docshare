@@ -395,3 +395,59 @@ def test_a_google_section_with_no_trailing_prose_gains_no_extra_section():
 def test_a_blank_line_alone_is_not_trailing_prose():
     lexed = lex('S.\n\nArgs:\n    x (int): X.\n\n\n')
     assert [s.name for s in lexed.sections] == ['Args']
+
+
+# A leading call signature ###################################################
+
+UFUNC = """log(x, /, out=None, *, where=True, casting='same_kind'[, signature])
+
+Natural logarithm, element-wise.
+
+Parameters
+----------
+x : array_like
+    Input value.
+"""
+
+
+def test_a_leading_call_signature_is_not_the_summary():
+    lexed = lex(UFUNC)
+    assert lexed.signature.startswith('log(x, /, out=None')
+    assert lexed.summary == 'Natural logarithm, element-wise.'
+
+
+def test_a_signature_wrapped_over_several_lines_is_joined():
+    text = """spam(a, b,\n     c)\n\nThe summary.\n"""
+    lexed = lex(text)
+    assert lexed.signature == 'spam(a, b, c)'
+    assert lexed.summary == 'The summary.'
+
+
+def test_a_returned_name_before_the_call_is_part_of_the_signature():
+    lexed = lex('y = spam(a, b)\n\nThe summary.\n')
+    assert lexed.signature == 'y = spam(a, b)'
+    assert lexed.summary == 'The summary.'
+
+
+def test_an_ordinary_summary_is_not_a_signature():
+    lexed = lex('Compute f(x) for each x.\n\nMore.\n')
+    assert lexed.signature is None
+    assert lexed.summary == 'Compute f(x) for each x.'
+
+
+def test_a_document_that_is_only_a_signature_keeps_it_as_the_summary():
+    # Taking it away would leave the document with nothing at all.
+    lexed = lex('spam(a, b)')
+    assert lexed.signature is None
+    assert lexed.summary == 'spam(a, b)'
+
+
+def test_a_signature_followed_by_a_section_alone_is_still_a_signature():
+    lexed = lex('spam(a, b)\n\nNotes\n-----\nA note.\n')
+    assert lexed.signature == 'spam(a, b)'
+    assert lexed.summary is None
+
+
+def test_a_document_with_no_preamble_has_no_signature():
+    lexed = lex('Notes\n-----\nA note.\n')
+    assert lexed.signature is None

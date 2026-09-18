@@ -560,3 +560,35 @@ def test_prose_between_sections_keeps_its_position():
         'Returns:\n    int: The result.'
     )
     assert render_document(parse_document(text)) == text
+
+
+# A leading call signature ###################################################
+
+UFUNC = """log(x, /, out=None, *, where=True)
+
+Natural logarithm, element-wise.
+
+Parameters
+----------
+x : array_like
+    Input value.
+"""
+
+
+def test_a_leading_call_signature_round_trips():
+    doc = parse_document(UFUNC)
+    assert doc.meta['signature'] == 'log(x, /, out=None, *, where=True)'
+    assert render_document(doc) == UFUNC.rstrip()
+
+
+def test_a_leading_call_signature_survives_a_format_conversion():
+    doc = parse_document(UFUNC)
+    text = render_document(doc, format='google')
+    assert text.startswith('log(x, /, out=None, *, where=True)\n\n')
+    assert 'Natural logarithm, element-wise.' in text
+    assert 'Args:' in text
+
+
+def test_an_ordinary_document_carries_no_signature():
+    doc = parse_document('Summary.\n\nNotes\n-----\nA note.\n')
+    assert 'signature' not in doc.meta

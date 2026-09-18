@@ -16,7 +16,14 @@ from docshare import (
     clear_docinfo,
     docparse,
 )
-from docshare._inherit import Operation, _resolve_sources, compose
+from docshare._inherit import (
+    DESCRIPTION,
+    SUMMARY,
+    Operation,
+    _resolve_sources,
+    compose,
+)
+from docshare._sections import section_kind
 
 
 @pytest.fixture(autouse=True)
@@ -1323,3 +1330,72 @@ def test_a_label_bound_to_an_index_identified_section_is_legal():
         target, Operation('raises', sources=((four_returns, 'TypeError'),))
     )
     assert [i.type for i in doc.section('raises').items] == ['TypeError']
+
+
+# The summary and the description ############################################
+
+
+def summarized(x):
+    """The source summary.
+
+    The source description, which is the prose beneath the summary.
+
+    Parameters
+    ----------
+    x : int
+        The x.
+    """
+
+
+def test_a_summary_operation_takes_the_sources_summary():
+    def target(x):
+        pass
+
+    doc = run(target, Operation(SUMMARY, sources=(summarized,)))
+    assert doc.summary == 'The source summary.'
+    assert doc.description == ()
+
+
+def test_a_description_operation_takes_the_sources_description():
+    def target(x):
+        pass
+
+    doc = run(target, Operation(DESCRIPTION, sources=(summarized,)))
+    assert doc.summary is None
+    assert 'The source description' in doc.description[0]
+
+
+def test_a_summary_operation_keeps_the_targets_own_summary():
+    def target(x):
+        """T."""
+
+    doc = run(target, Operation(SUMMARY, sources=(summarized,)))
+    assert doc.summary == 'T.'
+
+
+def test_a_description_operation_keeps_the_targets_own_description():
+    def target(x):
+        """T.
+
+        The target's own description.
+        """
+
+    doc = run(target, Operation(DESCRIPTION, sources=(summarized,)))
+    assert doc.description == ("The target's own description.",)
+
+
+def test_a_section_operation_leaves_the_summary_alone():
+    def target(x):
+        pass
+
+    doc = run(target, Operation('parameters', sources=(summarized,)))
+    assert doc.summary is None
+    assert doc.description == ()
+    assert descriptions(doc) == ['The x.']
+
+
+def test_the_components_are_named_apart_from_every_section():
+    # A section kind or an opaque title could otherwise collide with them.
+    for component in (SUMMARY, DESCRIPTION):
+        assert section_kind(component) is None
+        assert not component[0].isalnum()

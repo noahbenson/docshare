@@ -78,11 +78,16 @@ def parse_document(text, format=None):
                 )
         resolved = format
     sections = tuple(_build_section(section) for section in lexed.sections)
+    # The signature line is kept in the metadata rather than the summary: it
+    # describes the object it was written for, so it is written back out for
+    # that object and is never inherited by another.
+    meta = {'signature': lexed.signature} if lexed.signature else None
     return Document(
         summary=lexed.summary,
         description=lexed.description,
         sections=sections,
         format=resolved,
+        meta=meta,
     )
 
 

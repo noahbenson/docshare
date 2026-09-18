@@ -249,9 +249,65 @@ assert 'The first result.' in f.__doc__
 assert 'Efferents' not in f.__doc__
 ```
 
-`inheritall` takes every section `docshare` recognizes. It deliberately
-leaves unrecognized sections alone; add `inheritother=True` to include those
-too.
+`inheritall` takes every section `docshare` recognizes, along with the
+source's summary and description. It deliberately leaves unrecognized
+sections alone; add `inheritother=True` to include those too.
+
+## The summary and the description
+
+The text above the first section is two things: the summary, which is the
+opening paragraph, and the description, which is whatever prose follows it.
+Neither is a section, so neither is inherited by inheriting one --- taking a
+source's `Parameters` never takes its first line as well.
+
+Ask for them by name, or take both with `inheritall`:
+
+```python
+@docwrap(format='numpy', inheritsummary=base, inheritparams=base)
+def f(x, y):
+    pass
+
+
+assert f.__doc__.startswith('Do the basic thing.')
+assert 'The x, as base describes it.' in f.__doc__
+```
+
+`inheritdescription` does the same for the prose beneath the summary, and
+`inheritall` implies both.
+
+As everywhere else, what you write yourself wins: a function with a summary
+of its own keeps it, and `inheritsummary` does nothing.
+
+```python
+@docwrap(format='numpy', inheritall=base)
+def f(x, y):
+    """Do our thing."""
+    pass
+
+
+assert f.__doc__.startswith('Do our thing.')
+```
+
+This is worth reaching for when a wrapper really is the thing it wraps.
+Where it is not --- and a wrapper usually has something of its own to say
+--- write the summary and let the sections be inherited.
+
+### Docstrings that open with a call signature
+
+Some documentation opens with the object's own call signature rather than a
+summary. NumPy's ufuncs are the common example:
+
+```text
+log(x, /, out=None, *, where=True, ...[, signature])
+
+Natural logarithm, element-wise.
+```
+
+That line describes exactly one object, so `docshare` does not read it as a
+summary. It is kept aside, written back out when that object's own docstring
+is rendered, and never inherited by anything else; `inheritsummary=np.log`
+gives you `Natural logarithm, element-wise.` rather than a signature that
+belongs to something else.
 
 ## Sections `docshare` has never heard of
 

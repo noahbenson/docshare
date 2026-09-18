@@ -36,7 +36,7 @@ import difflib
 
 from ._cache import docparse, set_docinfo, source_document
 from ._exceptions import DocShareError
-from ._inherit import Operation, compose
+from ._inherit import DESCRIPTION, SUMMARY, Operation, compose
 from ._render import render_document
 from ._sections import iter_section_kinds, section_kind
 from ._signature import PARAMETER_KINDS, validate_signature
@@ -107,8 +107,16 @@ GENERAL_ARGUMENTS = (
     'inherit',
     'inheritall',
     'inheritother',
+    'inheritsummary',
+    'inheritdescription',
     'extraparam',
 )
+
+#: Maps the arguments naming a document component to that component.
+COMPONENT_ARGUMENTS = {
+    'inheritsummary': SUMMARY,
+    'inheritdescription': DESCRIPTION,
+}
 
 
 def _is_item_key(value):
@@ -263,6 +271,30 @@ def _from_inheritall(value, include_opaque):
     return ({k: tuple(v) for (k, v) in inherits.items()}, tuple(opaque))
 
 
+def _component_operations(options):
+    """Build the operations inheriting the summary and the description.
+
+    These are not sections, so they are never implied by inheriting one.
+    They are asked for by name, or by `inheritall`, which means all of a
+    source's documentation and would be a strange way to spell all of it but
+    the first line.
+    """
+    components = {}
+    for name, component in COMPONENT_ARGUMENTS.items():
+        specs = _as_source_specs(options.get(name))
+        if specs:
+            components[component] = specs
+    from_all = _as_source_specs(options.get('inheritall'))
+    if from_all:
+        for component in COMPONENT_ARGUMENTS.values():
+            components.setdefault(component, from_all)
+    return tuple(
+        Operation(kind=component, sources=components[component])
+        for component in COMPONENT_ARGUMENTS.values()
+        if component in components
+    )
+
+
 def _operations(options):
     """Build the ordered operations the decorator's arguments describe."""
     (inherits, drops, maps) = _collect(options)
@@ -282,7 +314,9 @@ def _operations(options):
     )
     for kind, sources in from_all.items():
         inherits.setdefault(kind, sources)
-    operations = []
+    # The summary and the description open the document, so they are
+    # composed before the sections that follow them.
+    operations = list(_component_operations(options))
     for kind in iter_section_kinds():
         sources = inherits.get(kind.name)
         if not sources:
@@ -390,7 +424,15 @@ def docwrap(obj=None, /, **options):
         The generalized form, mapping a section name to its sources, as in
         ``inherit={'Parameters': other}``.
     inheritall : object or sequence, optional
-        Inherit every recognized section the sources document.
+        Inherit every recognized section the sources document, along with
+        their summary and description.
+    inheritsummary : object or sequence, optional
+        Inherit the sources' summary, which is otherwise never inherited.
+        This is implied by `inheritall`.
+    inheritdescription : object or sequence, optional
+        Inherit the sources' description --- the prose between the summary
+        and the first section --- which is otherwise never inherited. This
+        is implied by `inheritall`.
     inheritother : sequence or bool, optional
         Inherit unrecognized sections, which are never inherited otherwise.
         Give ``(source, 'Section Name')`` pairs, or ``True`` alongside

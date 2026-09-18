@@ -339,3 +339,16 @@ format when `format` was not given. `format` therefore keeps its
 specification meaning, `render='numpy'` alone says how to write an object
 that has no docstring to detect a format from, and giving both converts a
 document from one format into the other.
+
+
+# To do
+
+Work that is planned rather than deferred.
+
+## Sphinx documentation site
+
+Build a Sphinx site under `docs/` and publish it to GitHub Pages from a
+workflow. The API reference can be generated from the package's own
+docstrings, which `docshare` composes, so the site doubles as a demonstration
+of the library on itself. The README, the specification, and this file are
+the natural starting content.

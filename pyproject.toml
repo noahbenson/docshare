@@ -52,6 +52,11 @@ test = [
     "pytest>=8.0",
     "pytest-cov>=5.0",
     "hypothesis>=6.100",
+    # Real libraries whose docstrings the test suite reads: NumPy for NumPy
+    # style and Google's own absl-py for Google style. Both are optional at
+    # runtime and the tests that use them skip when they are absent.
+    "numpy>=1.24",
+    "absl-py>=1.4",
 ]
 dev = [
     "docshare[test]",

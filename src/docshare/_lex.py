@@ -26,7 +26,7 @@ import textwrap
 from dataclasses import dataclass
 
 from ._exceptions import DocFormatError
-from ._sections import SUPPORTED_FORMATS, section_kind
+from ._sections import SUPPORTED_FORMATS, TITLE_CHARACTERS, section_kind
 
 __all__ = (
     'LexedDoc',
@@ -46,7 +46,7 @@ __all__ = (
 #     Parameters
 #     ----------
 #
-_NUMPY_TITLE = re.compile(r'^([A-Za-z][A-Za-z0-9 \-]*?)[ \t]*$')
+_NUMPY_TITLE = re.compile(f'^({TITLE_CHARACTERS})[ \t]*$')
 _NUMPY_UNDERLINE = re.compile(r'^-{3,}[ \t]*$')
 
 # Some documentation opens with the object's own call signature instead of a
@@ -67,7 +67,7 @@ _SIGNATURE = re.compile(r'^(?:[\w., ]+=)?\s*[\w.]+\(.*\)$')
 #     Args:
 #         x (float): The x.
 #
-_GOOGLE_TITLE = re.compile(r'^([A-Za-z][A-Za-z0-9 \-]*?)[ \t]*:[ \t]*$')
+_GOOGLE_TITLE = re.compile(f'^({TITLE_CHARACTERS})[ \t]*:[ \t]*$')
 
 # A documented name is a Python identifier, optionally starred for a variadic
 # parameter. Several may be declared at once, separated by commas.

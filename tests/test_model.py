@@ -11,7 +11,9 @@ from docshare import (
     FrozenDict,
     Item,
     Section,
+    section_kind,
 )
+from docshare._sections import custom_kind
 
 # FrozenDict ##################################################################
 
@@ -335,3 +337,108 @@ def test_grouped_item_survives_the_model(document):
     grouped = params.items[1]
     assert grouped.grouped
     assert grouped.names == ('y', 'z')
+
+
+# Declared sections ##########################################################
+
+INPUTS = custom_kind('Inputs', 'Parameters')
+CAVEATS = custom_kind('Caveats', 'Notes')
+
+
+def test_a_declared_section_takes_its_kind_from_its_declaration():
+    section = Section(name='Inputs', custom=INPUTS)
+    assert section.kind == 'inputs'
+    assert section.spec is INPUTS
+    assert not section.opaque
+
+
+def test_a_declared_section_is_structured_like_what_it_resembles():
+    assert Section(name='Inputs', custom=INPUTS).structured is True
+    assert Section(name='Caveats', custom=CAVEATS).structured is False
+
+
+def test_a_declared_prose_section_cannot_hold_items():
+    with pytest.raises(DocFormatError, match='is prose'):
+        Section(
+            name='Caveats',
+            custom=CAVEATS,
+            items=(Item(names=('x',)),),
+        )
+
+
+def test_a_declared_section_may_state_its_own_kind():
+    section = Section(name='Inputs', kind='inputs', custom=INPUTS)
+    assert section.kind == 'inputs'
+
+
+def test_a_declared_section_whose_kind_disagrees_is_refused():
+    with pytest.raises(DocFormatError, match='carries the custom kind'):
+        Section(name='Inputs', kind='parameters', custom=INPUTS)
+
+
+def test_a_custom_kind_must_be_a_section_kind():
+    with pytest.raises(TypeError, match='must be a SectionKind'):
+        Section(name='Inputs', custom='inputs')
+
+
+def test_a_custom_kind_cannot_shadow_a_registered_one():
+    shadow = dataclasses.replace(INPUTS, name='parameters')
+    with pytest.raises(DocFormatError, match='already recognizes'):
+        Section(name='Inputs', custom=shadow)
+
+
+def test_an_unregistered_kind_without_a_declaration_is_refused():
+    with pytest.raises(DocFormatError, match='unrecognized documentation'):
+        Section(name='Inputs', kind='inputs')
+
+
+def test_a_declared_section_survives_evolving():
+    section = Section(name='Inputs', custom=INPUTS)
+    assert section.evolve(items=(Item(names=('x',)),)).spec is INPUTS
+
+
+def test_an_opaque_section_has_no_spec():
+    assert Section(name='Efferents').spec is None
+
+
+def test_a_registered_section_reports_its_registered_spec():
+    assert Section(name='Notes', kind='notes').spec is section_kind('notes')
+
+
+# Looking a declared section up ##############################################
+
+
+DECLARED = Document(
+    summary='S.',
+    sections=(
+        Section(
+            name='Parameters',
+            kind='parameters',
+            items=(Item(names=('w',), description=('The weights.',)),),
+        ),
+        Section(
+            name='Inputs',
+            custom=INPUTS,
+            items=(Item(names=('x',), description=('The data.',)),),
+        ),
+    ),
+    format='numpy',
+)
+
+
+@pytest.mark.parametrize('key', ['Inputs', 'inputs', 'INPUTS', 'Inputs:'])
+def test_a_declared_section_answers_to_its_own_title(key):
+    assert DECLARED.section(key).name == 'Inputs'
+
+
+def test_a_declared_section_does_not_answer_to_what_it_resembles():
+    # The two coexist and mean different things; that is the whole point.
+    assert DECLARED.section('Parameters').name == 'Parameters'
+
+
+def test_a_document_of_declared_sections_is_still_hashable():
+    assert hash(DECLARED) is not None
+
+
+def test_another_unregistered_title_does_not_match_a_declared_section():
+    assert DECLARED.section('Efferents') is None

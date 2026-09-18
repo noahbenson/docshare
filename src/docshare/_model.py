@@ -22,11 +22,16 @@ to share between objects and cannot be modified by accident.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 
 from ._exceptions import DocFormatError
-from ._sections import SUPPORTED_FORMATS, section_kind
+from ._frozendict import FrozenDict
+from ._sections import (
+    SUPPORTED_FORMATS,
+    SectionKind,
+    normalize_title,
+    section_kind,
+)
 
 __all__ = (
     'Document',
@@ -34,58 +39,6 @@ __all__ = (
     'Item',
     'Section',
 )
-
-
-class FrozenDict(Mapping):
-    """An immutable, hashable mapping.
-
-    `FrozenDict` is used for the metadata attached to the records in this
-    module, so that those records remain immutable and hashable as a whole.
-    It behaves like an ordinary read-only mapping in every other respect.
-
-    Parameters
-    ----------
-    data : mapping or iterable of tuple, optional
-        The initial contents, as accepted by `dict`.
-    **kwargs
-        Additional entries, as accepted by `dict`.
-    """
-
-    __slots__ = ('_data', '_hash')
-
-    def __init__(self, data=(), /, **kwargs):
-        object.__setattr__(self, '_data', dict(data, **kwargs))
-        object.__setattr__(self, '_hash', None)
-
-    def __getitem__(self, key):
-        return self._data[key]
-
-    def __iter__(self):
-        return iter(self._data)
-
-    def __len__(self):
-        return len(self._data)
-
-    def __repr__(self):
-        return f'{type(self).__name__}({self._data!r})'
-
-    def __eq__(self, other):
-        if isinstance(other, Mapping):
-            return dict(self._data) == dict(other)
-        return NotImplemented
-
-    def __ne__(self, other):
-        result = self.__eq__(other)
-        if result is NotImplemented:
-            return result
-        return not result
-
-    def __hash__(self):
-        cached = self._hash
-        if cached is None:
-            cached = hash(frozenset(self._data.items()))
-            object.__setattr__(self, '_hash', cached)
-        return cached
 
 
 #: The metadata used when none is supplied.
@@ -209,6 +162,12 @@ class Section:
         for a structured section it is any text preceding the items.
     meta : FrozenDict
         Format-specific information retained for faithful rendering.
+    custom : SectionKind or None
+        The declared kind this section is an instance of, for a section the
+        caller declared rather than one `docshare` recognizes. The kind
+        travels with the section so that the document remains
+        self-describing: it can be rendered, inherited from and validated
+        without the caller supplying the declaration again.
     """
 
     name: str
@@ -216,20 +175,15 @@ class Section:
     items: tuple[Item, ...] = ()
     text: tuple[str, ...] = ()
     meta: FrozenDict = field(default=_NO_META)
+    custom: SectionKind | None = None
 
     def __post_init__(self):
         object.__setattr__(self, 'name', str(self.name))
         object.__setattr__(self, 'items', tuple(self.items))
         object.__setattr__(self, 'text', _as_lines(self.text))
         object.__setattr__(self, 'meta', _as_meta(self.meta))
-        if self.kind is not None:
-            found = section_kind(self.kind)
-            if found is None:
-                raise DocFormatError(
-                    f'unrecognized documentation section kind: '
-                    f'{self.kind!r}; pass kind=None for an opaque section'
-                )
-            object.__setattr__(self, 'kind', found.name)
+        found = self._resolve_kind()
+        if found is not None:
             if not found.structured and self.items:
                 raise DocFormatError(
                     f'the {found.name!r} section is prose and cannot hold '
@@ -246,6 +200,54 @@ class Section:
                     f'{type(item).__name__}'
                 )
 
+    def _resolve_kind(self):
+        """Validate `kind` and `custom`, and return the resolved kind."""
+        if self.custom is not None:
+            if not isinstance(self.custom, SectionKind):
+                raise TypeError(
+                    f"a section's custom kind must be a SectionKind, not "
+                    f'{type(self.custom).__name__}'
+                )
+            if section_kind(self.custom.name) is not None:
+                raise DocFormatError(
+                    f'{self.custom.name!r} is a section docshare already '
+                    f'recognizes and cannot be a custom kind'
+                )
+            if self.kind is not None and self.kind != self.custom.name:
+                raise DocFormatError(
+                    f'this section says it is of kind {self.kind!r} but '
+                    f'carries the custom kind {self.custom.name!r}'
+                )
+            object.__setattr__(self, 'kind', self.custom.name)
+            return self.custom
+        if self.kind is None:
+            return None
+        found = section_kind(self.kind)
+        if found is None:
+            raise DocFormatError(
+                f'unrecognized documentation section kind: '
+                f'{self.kind!r}; pass kind=None for an opaque section, or '
+                f'custom= for a section you have declared'
+            )
+        object.__setattr__(self, 'kind', found.name)
+        return found
+
+    @property
+    def spec(self):
+        """The kind this section is an instance of (`SectionKind` or None).
+
+        This is the declared kind for a section the caller declared, the
+        registered one for a section `docshare` recognizes, and ``None`` for
+        an opaque section. Everything that has to know how a section behaves
+        reads it here rather than from the registry, so that a declared
+        section behaves the same way wherever its document travels.
+        """
+        if self.custom is not None:
+            return self.custom
+        if self.kind is None:
+            return None
+        return section_kind(self.kind)
+
     @property
     def opaque(self):
         """Whether this section is preserved uninterpreted (`bool`)."""
@@ -254,9 +256,8 @@ class Section:
     @property
     def structured(self):
         """Whether this section's body consists of items (`bool`)."""
-        if self.kind is None:
-            return False
-        return section_kind(self.kind).structured
+        spec = self.spec
+        return False if spec is None else spec.structured
 
     def evolve(self, **changes):
         """Return a copy of this section with the given fields replaced.
@@ -364,15 +365,21 @@ class Document:
             Each matching section.
         """
         kind = section_kind(key)
-        if kind is None:
-            target = str(key).strip().lower()
-            for section in self.sections:
-                if section.opaque and section.name.strip().lower() == target:
-                    yield section
-        else:
+        if kind is not None:
             for section in self.sections:
                 if section.kind == kind.name:
                     yield section
+            return
+        # An unregistered title names either an opaque section or one the
+        # caller declared; a declared section answers to its own title, as a
+        # registered one does.
+        target = normalize_title(key)
+        for section in self.sections:
+            if section.custom is not None:
+                if target in section.custom.aliases:
+                    yield section
+            elif section.opaque and normalize_title(section.name) == target:
+                yield section
 
     def evolve(self, **changes):
         """Return a copy of this document with the given fields replaced.

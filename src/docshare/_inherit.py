@@ -82,6 +82,11 @@ class Operation(NamedTuple):
         are the source's item identities, spelled ``ignore<short>``.
     mapping : dict
         A correspondence from target identity to source identity.
+    custom : SectionKind or None
+        The declared kind, when `kind` names a section the caller declared
+        rather than one `docshare` recognizes. The registry cannot resolve
+        such a name, so the kind travels with the operation exactly as it
+        travels with a `Section`.
     """
 
     kind: str | None = None
@@ -89,6 +94,7 @@ class Operation(NamedTuple):
     sources: tuple = ()
     drop: frozenset = frozenset()
     mapping: FrozenDict = FrozenDict()
+    custom: object = None
 
 
 class _Spec(NamedTuple):
@@ -548,7 +554,7 @@ def compose(obj, doc, operations, *, extraparam=None):
             if section is not None:
                 sections.append(section)
             continue
-        kind = section_kind(operation.kind)
+        kind = operation.custom or section_kind(operation.kind)
         if not kind.structured:
             section = _inherit_prose(doc, operation, kind.name)
             if section is not None:
@@ -584,5 +590,12 @@ def _replace_items(sections, kind, items, doc):
             result.append(section)
     if not placed:
         title = kind.titles.get(doc.format or 'numpy', kind.name)
-        result.append(Section(name=title, kind=kind.name, items=items))
+        result.append(
+            Section(
+                name=title,
+                kind=kind.name,
+                items=items,
+                custom=None if section_kind(kind.name) else kind,
+            )
+        )
     return result

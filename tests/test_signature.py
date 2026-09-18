@@ -7,8 +7,11 @@ from docshare import (
     DocMappingError,
     DocSignatureError,
     Document,
+    Item,
+    Section,
     docparse,
 )
+from docshare._sections import custom_kind
 from docshare._signature import (
     _describe,
     _display,
@@ -460,3 +463,55 @@ def test_a_write_only_property_has_no_signature():
     prop = property(None, lambda self, value: None)
     assert signature_of(prop) is None
     check(prop, 'anything')
+
+
+# Declared sections are not the callable's parameters #########################
+
+
+def test_a_declared_section_is_not_checked_against_the_signature():
+    # "Inputs" documents observed data, not arguments, so a name that is not
+    # a parameter is correct rather than a mistake. This is what keeps the
+    # motivating docstring legal.
+    inputs = custom_kind('Inputs', 'Parameters')
+
+    def model(w):
+        pass
+
+    doc = Document(
+        summary='Fit a model.',
+        sections=(
+            Section(
+                name='Parameters',
+                kind='parameters',
+                items=(Item(names=('w',), description=('The weights.',)),),
+            ),
+            Section(
+                name='Inputs',
+                custom=inputs,
+                items=(Item(names=('x',), description=('The data.',)),),
+            ),
+        ),
+        format='numpy',
+    )
+    validate_signature(model, doc)
+
+
+def test_what_it_resembles_is_still_checked():
+    # Only the declared section is exempt; the real Parameters section is
+    # validated exactly as before.
+    def model(w):
+        pass
+
+    doc = Document(
+        summary='Fit a model.',
+        sections=(
+            Section(
+                name='Parameters',
+                kind='parameters',
+                items=(Item(names=('nope',), description=('No.',)),),
+            ),
+        ),
+        format='numpy',
+    )
+    with pytest.raises(DocSignatureError, match='no such parameter'):
+        validate_signature(model, doc)

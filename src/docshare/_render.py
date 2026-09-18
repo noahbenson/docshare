@@ -25,7 +25,6 @@ from ._exceptions import DocFormatError
 from ._sections import (
     SUPPORTED_FORMATS,
     render_kind,
-    section_kind,
     section_title,
 )
 
@@ -123,7 +122,7 @@ def _plan(doc, format):
         if section.kind is None:
             plan.append(_Emit(section.name, (), section.text, False))
             continue
-        kind = section_kind(section.kind)
+        kind = section.spec
         target = render_kind(kind, format)
         title = section_title(target, format)
         if not kind.structured:

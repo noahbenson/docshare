@@ -32,19 +32,24 @@ rendered into a format that does not.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from types import MappingProxyType
 
 from ._exceptions import DocFormatError
+from ._frozendict import FrozenDict
 
 __all__ = (
     'IDENTITY_NAME',
     'IDENTITY_NAME_OR_INDEX',
     'IDENTITY_TYPE_OR_INDEX',
     'SUPPORTED_FORMATS',
+    'TITLE_CHARACTERS',
     'SectionKind',
+    'custom_kind',
     'iter_section_kinds',
+    'kind_name',
     'normalize_title',
     'render_kind',
     'section_kind',
@@ -54,6 +59,13 @@ __all__ = (
 
 #: The documentation formats that `docshare` can parse and render.
 SUPPORTED_FORMATS = ('google', 'numpy')
+
+#: The characters a section title may be written with. Both formats agree on
+#: this, and the lexer builds its header patterns from it, so a title that
+#: does not match is one no docstring can express in either format.
+TITLE_CHARACTERS = r'[A-Za-z][A-Za-z0-9 \-]*?'
+
+_TITLE = re.compile(f'^{TITLE_CHARACTERS}$')
 
 #: Items are identified by name alone; for example, a parameter.
 IDENTITY_NAME = 'name'
@@ -263,9 +275,9 @@ def _build_registry():
             name=name,
             structured=structured,
             identity=identity,
-            titles=MappingProxyType({'numpy': numpy, 'google': google}),
+            titles=FrozenDict({'numpy': numpy, 'google': google}),
             aliases=tuple(alias),
-            merges=MappingProxyType(dict(_MERGES.get(name, {}))),
+            merges=FrozenDict(_MERGES.get(name, {})),
             placeholder=_PLACEHOLDERS.get(name),
         )
         kinds[name] = kind
@@ -322,6 +334,92 @@ def section_kind(title):
     if kind is not None:
         return kind
     return _KINDS.get(text.replace(' ', '_'))
+
+
+def kind_name(title):
+    """Return the normalized kind name that a section title produces.
+
+    Parameters
+    ----------
+    title : str
+        The section title as it appears in a docstring.
+
+    Returns
+    -------
+    str
+        The kind name, such as ``'see_also'`` for ``'See Also'``.
+    """
+    return normalize_title(title).replace(' ', '_')
+
+
+def custom_kind(title, like):
+    """Build a `SectionKind` for a section the caller has declared.
+
+    A declared section is a kind of its own rather than another name for an
+    existing one, because the two can appear in the same document and mean
+    different things: a model's ``Parameters`` may be the values being
+    fitted while its ``Inputs`` are the observations they are fitted to.
+    Treating the second as a spelling of the first would merge them when the
+    document is rendered and check both against the signature.
+
+    What the declared section borrows from the one it resembles is how its
+    body is *read*: whether it holds items, how those items are identified,
+    and what type stands in for one the author left out. What it does not
+    borrow is its titles, which are the spelling declared here in both
+    formats; its merges, which are empty, since it has no equivalent in
+    either format to be folded into; or membership of the parameter kinds,
+    so that it is never checked against a signature and is inherited from
+    its sources rather than from the target's parameter list.
+
+    Parameters
+    ----------
+    title : str
+        The section title, as it should be written in a docstring.
+    like : SectionKind or str
+        The recognized section this one resembles.
+
+    Returns
+    -------
+    SectionKind
+        The declared kind.
+
+    Raises
+    ------
+    DocFormatError
+        If the title is one `docshare` already recognizes, or is not one a
+        docstring could express.
+    """
+    text = str(title).strip()
+    if not _TITLE.match(text):
+        raise DocFormatError(
+            f'{text!r} cannot be a section title: a title is written with '
+            f'letters, digits, spaces and hyphens, and begins with a letter, '
+            f'in both supported formats'
+        )
+    if section_kind(text) is not None:
+        raise DocFormatError(
+            f'{text!r} is a section docshare already recognizes and cannot '
+            f'be declared as a custom section'
+        )
+    model = like if isinstance(like, SectionKind) else section_kind(like)
+    if model is None:
+        raise DocFormatError(
+            f'the custom section {text!r} is declared to resemble {like!r}, '
+            f'which is not a section docshare recognizes'
+        )
+    name = kind_name(text)
+    return SectionKind(
+        name=name,
+        structured=model.structured,
+        identity=model.identity,
+        titles=FrozenDict(dict.fromkeys(SUPPORTED_FORMATS, text)),
+        aliases=(normalize_title(text),),
+        # A declared section has no equivalent in either format, so it is
+        # never merged into another; and it is not a parameter kind, so it
+        # is never checked against a signature.
+        merges=FrozenDict(),
+        placeholder=model.placeholder,
+    )
 
 
 def section_title(kind, format):

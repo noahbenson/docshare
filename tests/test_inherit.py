@@ -23,7 +23,7 @@ from docshare._inherit import (
     _resolve_sources,
     compose,
 )
-from docshare._sections import section_kind
+from docshare._sections import custom_kind, section_kind
 
 
 @pytest.fixture(autouse=True)
@@ -1399,3 +1399,134 @@ def test_the_components_are_named_apart_from_every_section():
     for component in (SUMMARY, DESCRIPTION):
         assert section_kind(component) is None
         assert not component[0].isalnum()
+
+
+# Declared sections ##########################################################
+
+INPUTS = custom_kind('Inputs', 'Parameters')
+
+
+def declared_source():
+    """A source with a declared section."""
+
+
+DECLARED_SOURCE = Document(
+    summary='The source.',
+    sections=(
+        Section(
+            name='Parameters',
+            kind='parameters',
+            items=(Item(names=('w',), description=('Source weights.',)),),
+        ),
+        Section(
+            name='Inputs',
+            custom=INPUTS,
+            items=(
+                Item(names=('x',), description=('Source x.',)),
+                Item(names=('y',), description=('Source y.',)),
+            ),
+        ),
+    ),
+    format='numpy',
+)
+
+
+def test_a_declared_section_is_inherited_whole():
+    def target(w):
+        """T."""
+
+    doc = compose(
+        target,
+        docparse(target),
+        [Operation(kind='inputs', custom=INPUTS, sources=(DECLARED_SOURCE,))],
+    )
+    section = doc.section('Inputs')
+    assert section.spec is INPUTS
+    assert [item.names for item in section.items] == [('x',), ('y',)]
+
+
+def test_a_declared_section_is_driven_by_its_sources():
+    # It documents no parameters, so the target has no list to pull against
+    # and the source decides what exists --- as for Attributes.
+    def target():
+        """T."""
+
+    doc = compose(
+        target,
+        docparse(target),
+        [Operation(kind='inputs', custom=INPUTS, sources=(DECLARED_SOURCE,))],
+    )
+    assert [i.names for i in doc.section('Inputs').items] == [('x',), ('y',)]
+
+
+def test_the_targets_own_declared_items_win():
+    def target():
+        """T."""
+
+    own = Document(
+        summary='T.',
+        sections=(
+            Section(
+                name='Inputs',
+                custom=INPUTS,
+                items=(Item(names=('x',), description=('Our x.',)),),
+            ),
+        ),
+        format='numpy',
+    )
+    doc = compose(
+        target,
+        own,
+        [Operation(kind='inputs', custom=INPUTS, sources=(DECLARED_SOURCE,))],
+    )
+    assert descriptions(doc, 'Inputs') == ['Our x.', 'Source y.']
+
+
+def test_a_declared_section_can_be_ignored_by_item():
+    def target():
+        """T."""
+
+    doc = compose(
+        target,
+        docparse(target),
+        [
+            Operation(
+                kind='inputs',
+                custom=INPUTS,
+                sources=(DECLARED_SOURCE,),
+                drop=frozenset({'y'}),
+            )
+        ],
+    )
+    assert [i.names for i in doc.section('Inputs').items] == [('x',)]
+
+
+def test_a_declared_section_can_be_mapped():
+    def target():
+        """T."""
+
+    doc = compose(
+        target,
+        docparse(target),
+        [
+            Operation(
+                kind='inputs',
+                custom=INPUTS,
+                sources=(DECLARED_SOURCE,),
+                mapping={'data': 'x'},
+            )
+        ],
+    )
+    assert ('data',) in [i.names for i in doc.section('Inputs').items]
+
+
+def test_inheriting_a_declared_section_leaves_what_it_resembles_alone():
+    def target(w):
+        """T."""
+
+    doc = compose(
+        target,
+        docparse(target),
+        [Operation(kind='inputs', custom=INPUTS, sources=(DECLARED_SOURCE,))],
+    )
+    assert doc.section('parameters') is None

@@ -7,6 +7,7 @@ from corpus import CORPUS, CORPUS_IDS, semantics
 from docshare import DocFormatError, Document, Item, Section
 from docshare._parser import parse_document
 from docshare._render import render_document
+from docshare._sections import custom_kind
 
 NUMPY_CASES = [(entry[0], entry[1]) for entry in CORPUS]
 GOOGLE_CASES = [(entry[0], entry[2]) for entry in CORPUS]
@@ -617,3 +618,83 @@ def test_an_opaque_section_written_as_google_is_prose_when_read_back():
     again = parse_document(render_document(doc, format='google'))
     assert again.sections == ()
     assert again.description == ('Efferents:', '    Downstream.')
+
+
+# Declared sections ##########################################################
+
+INPUTS = custom_kind('Inputs', 'Parameters')
+CAVEATS = custom_kind('Caveats', 'Notes')
+
+MODEL = Document(
+    summary='Fit a model.',
+    sections=(
+        Section(
+            name='Parameters',
+            kind='parameters',
+            items=(
+                Item(
+                    names=('w',),
+                    type='array',
+                    description=('Fitted weights.',),
+                ),
+            ),
+        ),
+        Section(
+            name='Inputs',
+            custom=INPUTS,
+            items=(
+                Item(
+                    names=('x',), type='array', description=('Observed data.',)
+                ),
+            ),
+        ),
+    ),
+    format='numpy',
+)
+
+
+def test_a_declared_section_does_not_merge_into_what_it_resembles():
+    # This is the case the whole feature exists for: a model's parameters
+    # are fitted, its inputs are observed, and they are not the same list.
+    text = render_document(MODEL)
+    assert 'Inputs\n------\nx : array' in text
+    assert 'Parameters\n----------\nw : array' in text
+    assert text.count('Fitted weights.') == 1
+    assert text.count('Observed data.') == 1
+
+
+def test_a_declared_section_keeps_its_spelling_in_google():
+    text = render_document(MODEL, format='google')
+    assert 'Args:' in text
+    assert 'Inputs:\n    x (array): Observed data.' in text
+
+
+def test_a_declared_prose_section_renders_as_prose():
+    doc = Document(
+        summary='S.',
+        sections=(
+            Section(name='Caveats', custom=CAVEATS, text=('Careful.',)),
+        ),
+        format='numpy',
+    )
+    assert render_document(doc) == 'S.\n\nCaveats\n-------\nCareful.'
+
+
+def test_two_sections_of_one_declared_kind_merge_as_registered_ones_do():
+    doc = Document(
+        summary='S.',
+        sections=(
+            Section(
+                name='Inputs',
+                custom=INPUTS,
+                items=(Item(names=('x',), description=('The x.',)),),
+            ),
+            Section(
+                name='Inputs',
+                custom=INPUTS,
+                items=(Item(names=('y',), description=('The y.',)),),
+            ),
+        ),
+        format='numpy',
+    )
+    assert render_document(doc).count('Inputs\n------') == 1

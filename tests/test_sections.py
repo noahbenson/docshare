@@ -9,11 +9,14 @@ from docshare._sections import (
     IDENTITY_NAME_OR_INDEX,
     IDENTITY_TYPE_OR_INDEX,
     SUPPORTED_FORMATS,
+    custom_kind,
     iter_section_kinds,
+    kind_name,
     normalize_title,
     render_kind,
     section_title,
 )
+from docshare._signature import PARAMETER_KINDS
 
 ALL_KINDS = tuple(iter_section_kinds())
 
@@ -259,3 +262,80 @@ def test_render_kind_rejects_an_unrecognized_kind():
 )
 def test_normalize_title(raw, expected):
     assert normalize_title(raw) == expected
+
+
+# Declared sections ##########################################################
+
+
+def test_a_declared_kind_borrows_how_its_body_is_read():
+    kind = custom_kind('Inputs', 'Parameters')
+    model = section_kind('parameters')
+    assert kind.name == 'inputs'
+    assert kind.structured is model.structured
+    assert kind.identity is model.identity
+    assert kind.placeholder == model.placeholder
+
+
+def test_a_declared_kind_keeps_its_own_spelling_in_both_formats():
+    kind = custom_kind('Inputs', 'Parameters')
+    assert dict(kind.titles) == {'numpy': 'Inputs', 'google': 'Inputs'}
+
+
+def test_a_declared_kind_is_never_merged():
+    # It has no equivalent in either format to be folded into.
+    kind = custom_kind('Keyword Inputs', 'Keyword Args')
+    assert dict(kind.merges) == {}
+    for format in SUPPORTED_FORMATS:
+        assert render_kind(kind, format) is kind
+
+
+def test_a_declared_kind_is_hashable():
+    # A Section carries its declared kind, and every record in the model is
+    # hashable as a whole.
+    assert hash(custom_kind('Inputs', 'Parameters')) is not None
+
+
+def test_a_declared_kind_is_not_a_parameter_kind():
+    # It documents something other than the callable's parameters, so it is
+    # never checked against a signature.
+    assert custom_kind('Inputs', 'Parameters').name not in PARAMETER_KINDS
+
+
+def test_a_declared_kind_borrows_a_placeholder():
+    assert custom_kind('Products', 'Returns').placeholder == 'object'
+
+
+def test_a_declared_kind_may_resemble_a_prose_section():
+    kind = custom_kind('Caveats', 'Notes')
+    assert kind.structured is False
+    assert kind.identity is None
+
+
+def test_a_recognized_title_cannot_be_declared():
+    with pytest.raises(DocFormatError, match='already recognizes'):
+        custom_kind('Parameters', 'Returns')
+
+
+def test_a_recognized_title_cannot_be_declared_by_an_alias():
+    with pytest.raises(DocFormatError, match='already recognizes'):
+        custom_kind('Args', 'Returns')
+
+
+@pytest.mark.parametrize('title', ['Model I/O', 'In:puts', '2Inputs', ''])
+def test_a_title_no_docstring_could_express_is_refused(title):
+    with pytest.raises(DocFormatError, match='cannot be a section title'):
+        custom_kind(title, 'Parameters')
+
+
+def test_resembling_something_unrecognized_is_refused():
+    with pytest.raises(DocFormatError, match='not a section docshare'):
+        custom_kind('Inputs', 'Efferents')
+
+
+def test_a_declared_title_may_have_several_words():
+    assert custom_kind('Model Inputs', 'Parameters').name == 'model_inputs'
+
+
+def test_kind_name_normalizes_a_title():
+    assert kind_name('See Also') == 'see_also'
+    assert kind_name('Inputs:') == 'inputs'

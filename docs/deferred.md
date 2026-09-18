@@ -83,25 +83,40 @@ the document "mixes NumPy-style sections with Google-style sections
 explains that reading when the suspect header sits inside a NumPy section
 rather than before one, and the README documents the case under formats.
 
-## 3. A dashes line inside a prose section can look like a header
+## 3. A dashes line inside a prose section looks like a header --- ACCEPTED
 
-*Raised in phase 2. Specification section 30.*
+*Raised in phase 2; accepted as-is after phase 8. Specification sections 30
+and 47.*
 
-A NumPy section header is a title underlined with at least three dashes. A
-prose section whose body happens to contain a line of three or more dashes
-directly beneath a short line of text, such as a hand-drawn table or a
-horizontal rule, is read as a new section:
+A NumPy section header is a title underlined with at least three dashes, and
+the title need not be one `docshare` recognizes --- sections 13 and 29
+require an unknown section such as `Efferents` to be preserved, so any plain
+line above a rule of dashes opens a section. A prose section whose body
+contains such a pair, as a hand-drawn table or a reStructuredText subsection
+does, is therefore split in two:
 
 ```text
 Notes
 -----
-Column
-------
+Some background prose.
+
+Background
+----------
+An RST subsection inside the notes.
 ```
 
-No case of this has appeared in practice, and tightening the rule risks
-rejecting legitimate short section titles. Revisit if it is encountered.
+Accepted rather than fixed, because the consequence is restructuring without
+loss. The unrecognized title becomes an opaque section, whose body is
+preserved verbatim and never interpreted, so every line survives. The example
+above round-trips byte for byte; a hand-drawn table round-trips with one
+blank line inserted, which section 47 explicitly permits. numpydoc treats an
+unknown underlined title the same way.
 
+Tightening the rule would mean either refusing unrecognized sections, which
+sections 13 and 29 forbid, or guessing from the title, which would be less
+predictable than the present behavior. A docstring that genuinely needs a
+dashes rule inside its prose can use a different underline character, which
+reStructuredText allows and this rule ignores.
 
 ## 4. Cross-format rendering of keyword arguments is one-way
 

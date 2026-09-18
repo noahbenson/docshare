@@ -72,7 +72,7 @@ def test_discarding_entries_while_the_bound_changes(interleaved):
 
     def fill():
         for index in range(8000):
-            cache[(None, f'k{index}')] = document()
+            cache[(None, None, f'k{index}')] = document()
 
     def resize():
         for index in range(8000):
@@ -90,7 +90,7 @@ def test_iterating_while_another_thread_writes(interleaved):
 
     def fill():
         for index in range(8000):
-            cache[(None, f'k{index}')] = document()
+            cache[(None, None, f'k{index}')] = document()
 
     assert race(walk, fill) == []
 
@@ -106,25 +106,25 @@ def test_reading_a_snapshot_while_another_thread_writes(interleaved):
 
     def fill():
         for index in range(8000):
-            cache[(None, f'k{index}')] = document()
+            cache[(None, None, f'k{index}')] = document()
 
     assert race(read, fill) == []
 
 
 def test_reading_an_entry_while_another_thread_removes_it(interleaved):
     cache = DocCache(maxsize=100)
-    cache[(None, 'k')] = document()
+    cache[(None, None, 'k')] = document()
 
     def read():
         for _ in range(8000):
             with contextlib.suppress(KeyError):
-                cache[(None, 'k')]
+                cache[(None, None, 'k')]
 
     def churn():
         for _ in range(8000):
-            cache[(None, 'k')] = document()
+            cache[(None, None, 'k')] = document()
             with contextlib.suppress(KeyError):
-                del cache[(None, 'k')]
+                del cache[(None, None, 'k')]
 
     assert race(read, read, churn) == []
 
@@ -134,11 +134,11 @@ def test_membership_while_another_thread_writes(interleaved):
 
     def check():
         for index in range(8000):
-            (None, f'k{index}') in cache  # noqa: B015 - the lookup is the point
+            (None, None, f'k{index}') in cache  # noqa: B015 - the lookup is the point
 
     def fill():
         for index in range(8000):
-            cache[(None, f'k{index}')] = document()
+            cache[(None, None, f'k{index}')] = document()
 
     assert race(check, fill) == []
 
@@ -148,7 +148,7 @@ def test_clearing_while_another_thread_writes(interleaved):
 
     def fill():
         for index in range(8000):
-            cache[(None, f'k{index}')] = document()
+            cache[(None, None, f'k{index}')] = document()
 
     def wipe():
         for _ in range(1500):
@@ -167,7 +167,7 @@ def test_reporting_while_another_thread_writes(interleaved):
 
     def fill():
         for index in range(8000):
-            cache[(None, f'k{index}')] = document()
+            cache[(None, None, f'k{index}')] = document()
 
     assert race(report, fill) == []
 
@@ -211,7 +211,7 @@ def test_the_bound_is_respected_under_contention(interleaved):
     def fill(seed):
         def work():
             for index in range(3000):
-                cache[(None, f'{seed}-{index}')] = document()
+                cache[(None, None, f'{seed}-{index}')] = document()
 
         return work
 

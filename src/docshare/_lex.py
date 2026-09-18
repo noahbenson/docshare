@@ -26,7 +26,12 @@ import textwrap
 from dataclasses import dataclass
 
 from ._exceptions import DocFormatError
-from ._sections import SUPPORTED_FORMATS, TITLE_CHARACTERS, section_kind
+from ._sections import (
+    SUPPORTED_FORMATS,
+    TITLE_CHARACTERS,
+    declared_kind,
+    section_kind,
+)
 
 __all__ = (
     'LexedDoc',
@@ -221,7 +226,7 @@ def _scan_numpy(lines):
     return found
 
 
-def _scan_google(lines):
+def _scan_google(lines, custom=None):
     """Find every Google section header, as ``(index, name, body_start)``.
 
     A Google header is a title, a colon, and an indented block --- which is
@@ -242,10 +247,19 @@ def _scan_google(lines):
     be trusted on its own.
 
     The cost is that a Google document has no way to spell a section
-    `docshare` does not know. Such a block is kept verbatim as prose, so
-    nothing is lost from the document, but it is not a section and cannot be
-    inherited as one. NumPy style, whose headers are unambiguous, keeps its
-    opaque sections.
+    `docshare` does not know --- unless the caller says so. Such a block is
+    otherwise kept verbatim as prose, so nothing is lost from the document,
+    but it is not a section and cannot be inherited as one. NumPy style,
+    whose headers are unambiguous, keeps its opaque sections either way.
+
+    Parameters
+    ----------
+    lines : list of str
+        The cleaned document lines.
+    custom : Mapping or None
+        A normalized declaration of sections beyond the recognized ones, as
+        `normalize_custom` returns. A declared title is a header here on the
+        same terms as a recognized one.
     """
     found = []
     index = 0
@@ -255,7 +269,8 @@ def _scan_google(lines):
             index += 1
             continue
         name, body_start = header
-        if section_kind(name) is None:
+        (declared, _) = declared_kind(custom, name)
+        if not declared and section_kind(name) is None:
             index += 1
             continue
         found.append((index, name, body_start))
@@ -278,7 +293,7 @@ def _google_body_end(lines, start, limit):
     return limit
 
 
-def lex(text, styles=None):
+def lex(text, styles=None, custom=None):
     """Split a docstring into its summary, description, and sections.
 
     Parameters
@@ -291,6 +306,11 @@ def lex(text, styles=None):
         style reads the document as that format alone, so that a construct
         which is a section header in one format and an item declaration in
         the other is read the way that format intends.
+    custom : Mapping or None
+        A normalized declaration of sections beyond the recognized ones, as
+        `normalize_custom` returns. This matters only to Google headers,
+        which are recognized by title; a NumPy underline already marks any
+        title as a section.
 
     Returns
     -------
@@ -302,7 +322,7 @@ def lex(text, styles=None):
     lines = clean(text)
     allowed = SUPPORTED_FORMATS if styles is None else tuple(styles)
     numpy_found = _scan_numpy(lines) if 'numpy' in allowed else []
-    google_found = _scan_google(lines) if 'google' in allowed else []
+    google_found = _scan_google(lines, custom) if 'google' in allowed else []
     headers = sorted(
         [(i, n, 'numpy', b) for (i, n, b) in numpy_found]
         + [(i, n, 'google', b) for (i, n, b) in google_found]

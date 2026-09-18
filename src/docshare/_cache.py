@@ -50,11 +50,11 @@ from __future__ import annotations
 
 import threading
 from collections import OrderedDict
-from collections.abc import MutableMapping
+from collections.abc import Mapping, MutableMapping
 
 from ._model import Document
 from ._parser import parse_document
-from ._sections import SUPPORTED_FORMATS
+from ._sections import SUPPORTED_FORMATS, normalize_custom
 
 __all__ = ('DocCache', 'clear_docinfo', 'doccache', 'docinfo', 'docparse')
 
@@ -64,7 +64,7 @@ DEFAULT_MAXSIZE = 2048
 
 
 def _check_key(key):
-    """Verify that a cache key is a ``(format, documentation)`` pair.
+    """Verify that a cache key is a ``(format, custom, documentation)`` triple.
 
     A dictionary accepts any hashable key, so a bare docstring used as one
     would be stored without complaint and never read again, leaving the cache
@@ -83,25 +83,31 @@ def _check_key(key):
     Raises
     ------
     TypeError
-        If the key is not a ``(format, documentation)`` pair.
+        If the key is not a ``(format, custom, documentation)`` triple.
     ValueError
         If the format is not one `docshare` supports, or ``None``.
     """
-    if not isinstance(key, tuple) or len(key) != 2:
+    if not isinstance(key, tuple) or len(key) != 3:
         raise TypeError(
-            f'a documentation cache key is a (format, documentation) pair, '
-            f'not {key!r}; the format is None for a request that let the '
-            f'format be detected'
+            f'a documentation cache key is a (format, custom, '
+            f'documentation) triple, not {key!r}; the format and the '
+            f'declaration are None for a request that let the format be '
+            f'detected and declared no sections of its own'
         )
-    (format, text) = key
+    (format, custom, text) = key
     if format is not None and format not in SUPPORTED_FORMATS:
         raise ValueError(
             f'{format!r} is not a documentation format; expected None or '
             f'one of {", ".join(map(repr, SUPPORTED_FORMATS))}'
         )
+    if custom is not None and not isinstance(custom, Mapping):
+        raise TypeError(
+            f'the declaration in a cache key is a normalized mapping or '
+            f'None, not {type(custom).__name__}; normalize_custom builds one'
+        )
     if text is not None and not isinstance(text, str):
         raise TypeError(
-            f'the documentation half of a cache key is a string or None, '
+            f'the documentation part of a cache key is a string or None, '
             f'not {type(text).__name__}'
         )
 
@@ -110,10 +116,11 @@ class DocCache(MutableMapping):
     """A bounded cache of parsed documentation.
 
     The cache behaves as an ordinary mutable mapping from a
-    ``(format, docstring)`` pair to the `Document` that pair parses to,
+    ``(format, custom, docstring)`` triple to the `Document` it parses to,
     discarding the least recently used entry when it grows past
     `DocCache.maxsize`. The format is the one that was *asked for*, so it is
-    ``None`` for a request that let the format be detected.
+    ``None`` for a request that let the format be detected, and `custom` is
+    the normalized declaration of sections the request added, or ``None``.
 
     An instance of this class is exposed as `docshare.doccache`. It is public
     so that it can be inspected, cleared, resized, or pre-loaded, all of which
@@ -121,7 +128,7 @@ class DocCache(MutableMapping):
     and putting a document into it that does not correspond to its key will
     produce documentation that does not correspond to anything.
 
-    A key is a ``(format, documentation)`` pair, and is checked on every
+    A key is a ``(format, custom, documentation)`` triple, checked on every
     access. A dictionary would accept a bare docstring as a key without
     complaint, store it, and never read it again; checking turns that into an
     error where it happens rather than a cache that is quietly wrong.
@@ -256,7 +263,7 @@ class DocCache(MutableMapping):
         )
 
 
-#: The documentation `docshare` has parsed, keyed by ``(format, docstring)``.
+#: What `docshare` has parsed, keyed by ``(format, custom, docstring)``.
 doccache = DocCache()
 
 
@@ -303,7 +310,7 @@ def documentation(obj):
     return getattr(obj, '__doc__', None)
 
 
-def docparse(obj, *, format=None):
+def docparse(obj, *, format=None, custom=None):
     """Parse an object's current documentation from scratch.
 
     This never consults the cache and never populates it. Use `docinfo` for
@@ -316,6 +323,11 @@ def docparse(obj, *, format=None):
     format : str, optional
         The format the documentation must be written in. When this is
         ``None``, the default, the format is detected from the document.
+    custom : mapping, iterable of str, or str, optional
+        Sections to recognize beyond the ones `docshare` knows. A mapping
+        gives each title the recognized section it resembles, whose reading
+        it borrows; a title given without one is recognized as a section and
+        otherwise left uninterpreted.
 
     Returns
     -------
@@ -331,10 +343,12 @@ def docparse(obj, *, format=None):
     DocParseError
         If the documentation cannot be read as the format requires.
     """
-    return parse_document(documentation(obj), format=format)
+    return parse_document(
+        documentation(obj), format=format, custom=normalize_custom(custom)
+    )
 
 
-def docinfo(obj, *, format=None):
+def docinfo(obj, *, format=None, custom=None):
     """Return the documentation information associated with an object.
 
     When nothing is recorded for the object's documentation, it is parsed
@@ -350,6 +364,11 @@ def docinfo(obj, *, format=None):
         happen. It is not a request to convert anything: the document
         representation does not depend on the format it was written in, and
         a recorded document is returned whatever this says.
+    custom : mapping, iterable of str, or str, optional
+        Sections to recognize beyond the ones `docshare` knows, as
+        `docparse` accepts them. Unlike `format`, this is part of what the
+        record is *of*: the same text read under two declarations is two
+        different documents, so each is recorded separately.
 
     Returns
     -------
@@ -364,16 +383,17 @@ def docinfo(obj, *, format=None):
         As `docparse`, when parsing is necessary.
     """
     text = documentation(obj)
+    declared = normalize_custom(custom)
     try:
-        return doccache[(format, text)]
+        return doccache[(format, declared, text)]
     except KeyError:
         pass
-    info = parse_document(text, format=format)
-    doccache[(format, text)] = info
+    info = parse_document(text, format=format, custom=declared)
+    doccache[(format, declared, text)] = info
     return info
 
 
-def set_docinfo(obj, info, text=None, format=None):
+def set_docinfo(obj, info, text=None, format=None, custom=None):
     """Record documentation information for an object.
 
     Composition uses this to record the document it assembled, so that
@@ -394,15 +414,26 @@ def set_docinfo(obj, info, text=None, format=None):
         The format `text` is written in. The record answers a request for
         that format and a request that lets the format be detected, since
         detecting the format of `text` yields the same thing.
+    custom : Mapping, optional
+        The normalized declaration `text` was composed under, if any.
 
     Returns
     -------
     None
+
+    Notes
+    -----
+    The record is always filed under the plain key as well, so that a later
+    `docinfo` that declares nothing still finds the composed document rather
+    than reparsing documentation whose declared sections it would not
+    recognize. That is a convenience of the cache and not a guarantee: a
+    rendered docstring does not carry its own declaration, so once the entry
+    is discarded the declaration has to be supplied again.
     """
     text = documentation(obj) if text is None else text
-    doccache[(None, text)] = info
-    if format is not None:
-        doccache[(format, text)] = info
+    doccache[(None, None, text)] = info
+    if format is not None or custom is not None:
+        doccache[(format, custom, text)] = info
 
 
 def clear_docinfo(obj=None):
@@ -423,5 +454,9 @@ def clear_docinfo(obj=None):
         doccache.clear()
         return
     text = documentation(obj)
-    for format in (None, *SUPPORTED_FORMATS):
-        doccache.pop((format, text), None)
+    # Every format and every declaration the text may have been read
+    # under, which cannot be enumerated, so the keys are matched instead.
+    # Iteration works from a snapshot, so removing entries is safe here.
+    for key in doccache:
+        if key[2] == text:
+            doccache.pop(key, None)

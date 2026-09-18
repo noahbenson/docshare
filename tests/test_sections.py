@@ -12,6 +12,7 @@ from docshare._sections import (
     custom_kind,
     iter_section_kinds,
     kind_name,
+    normalize_custom,
     normalize_title,
     render_kind,
     section_title,
@@ -339,3 +340,30 @@ def test_a_declared_title_may_have_several_words():
 def test_kind_name_normalizes_a_title():
     assert kind_name('See Also') == 'see_also'
     assert kind_name('Inputs:') == 'inputs'
+
+
+def test_a_single_declared_title_needs_no_container():
+    assert dict(normalize_custom('Efferents')) == {'efferents': None}
+
+
+def test_a_declaration_may_write_a_title_with_its_google_colon():
+    declared = normalize_custom({'Inputs:': 'Parameters'})
+    assert dict(declared['inputs'].titles) == {
+        'numpy': 'Inputs',
+        'google': 'Inputs',
+    }
+
+
+def test_declaring_one_title_twice_is_refused():
+    with pytest.raises(DocFormatError, match='more than once'):
+        normalize_custom({'Inputs': 'Parameters', 'inputs:': 'Args'})
+
+
+def test_declaring_a_recognized_title_without_a_kind_is_refused():
+    with pytest.raises(DocFormatError, match='already recognizes'):
+        normalize_custom(['Parameters'])
+
+
+def test_declaring_an_impossible_title_without_a_kind_is_refused():
+    with pytest.raises(DocFormatError, match='cannot be a section title'):
+        normalize_custom(['Model I/O'])

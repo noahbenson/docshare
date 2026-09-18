@@ -12,6 +12,7 @@ from corpus import CORPUS, CORPUS_IDS, semantics
 from docshare import DocFormatError, DocParseError, Item, section_kind
 from docshare._google import parse_items as google_parse_items
 from docshare._parser import parse_document
+from docshare._sections import normalize_custom
 
 
 @pytest.mark.parametrize(
@@ -372,3 +373,84 @@ def test_an_unrecognized_google_block_is_legal_in_a_numpy_document():
     doc = parse_document(text, format='numpy')
     assert [s.kind for s in doc.sections] == ['parameters']
     assert 'The tuple has the following elements:' in doc.description
+
+
+# Declared sections ##########################################################
+
+DECLARED_NUMPY = """Fit a model.
+
+Parameters
+----------
+w : array
+    Fitted weights.
+
+Inputs
+------
+x : array
+    Observed data.
+"""
+
+DECLARED_GOOGLE = """Fit a model.
+
+Args:
+    w (array): Fitted weights.
+
+Inputs:
+    x (array): Observed data.
+"""
+
+INPUTS = {'Inputs': 'Parameters'}
+
+
+@pytest.mark.parametrize(
+    'text,format',
+    [(DECLARED_NUMPY, 'numpy'), (DECLARED_GOOGLE, 'google')],
+    ids=['numpy', 'google'],
+)
+def test_a_declared_section_is_read_as_what_it_resembles(text, format):
+    doc = parse_document(text, custom=normalize_custom(INPUTS))
+    assert doc.format == format
+    section = doc.section('Inputs')
+    assert section.spec.name == 'inputs'
+    assert [item.names for item in section.items] == [('x',)]
+    assert [item.type for item in section.items] == ['array']
+
+
+@pytest.mark.parametrize(
+    'text', [DECLARED_NUMPY, DECLARED_GOOGLE], ids=['numpy', 'google']
+)
+def test_a_declared_section_does_not_disturb_what_it_resembles(text):
+    doc = parse_document(text, custom=normalize_custom(INPUTS))
+    assert [item.names for item in doc.section('parameters').items] == [('w',)]
+
+
+def test_a_title_declared_without_a_kind_is_a_section_in_google():
+    doc = parse_document(
+        'S.\n\nEfferents:\n    Downstream.\n',
+        custom=normalize_custom(['Efferents']),
+    )
+    section = doc.section('Efferents')
+    assert section.opaque
+    assert section.text == ('Downstream.',)
+
+
+def test_a_declaration_does_not_make_other_prose_a_section():
+    doc = parse_document(
+        'S.\n\nEfferents:\n    Downstream.\n\nFor example:\n\n    f(1)\n',
+        custom=normalize_custom(['Efferents']),
+    )
+    assert [s.name for s in doc.sections if s.name] == ['Efferents']
+
+
+def test_a_declaration_is_not_needed_for_numpy_to_keep_a_section():
+    # A NumPy underline already marks any title as a section.
+    doc = parse_document('S.\n\nEfferents\n---------\nDownstream.\n')
+    assert doc.section('Efferents').opaque
+
+
+def test_an_undeclared_reading_leaves_the_section_uninterpreted():
+    # The declaration is per call, so a parse that does not make it reads
+    # the same text as it did before the feature existed.
+    doc = parse_document(DECLARED_NUMPY)
+    assert doc.section('Inputs').opaque
+    assert doc.section('Inputs').spec is None

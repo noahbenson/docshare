@@ -20,12 +20,16 @@ from . import _google, _numpy
 from ._exceptions import DocFormatError
 from ._lex import detect_format, lex
 from ._model import Document, Section
-from ._sections import SUPPORTED_FORMATS, section_kind
+from ._sections import (
+    SUPPORTED_FORMATS,
+    declared_kind,
+    section_kind,
+)
 
 __all__ = ('parse_document',)
 
 
-def parse_document(text, format=None):
+def parse_document(text, format=None, custom=None):
     """Parse a docstring into its semantic representation.
 
     Parameters
@@ -37,6 +41,9 @@ def parse_document(text, format=None):
     format : str, optional
         The format the document must be written in. When this is ``None``,
         the default, the format is detected from the document itself.
+    custom : Mapping or None
+        A normalized declaration of sections beyond the recognized ones, as
+        `normalize_custom` returns.
 
     Returns
     -------
@@ -53,7 +60,7 @@ def parse_document(text, format=None):
         If a section body cannot be read as the format requires.
     """
     if format is None:
-        lexed = lex(text)
+        lexed = lex(text, custom=custom)
         resolved = detect_format(lexed)
     else:
         if format not in SUPPORTED_FORMATS:
@@ -64,10 +71,10 @@ def parse_document(text, format=None):
         # Read the document as the requested format alone, so that a
         # construct which is a header in the other format but an item
         # declaration in this one is read the way this format intends.
-        lexed = lex(text, styles=(format,))
+        lexed = lex(text, styles=(format,), custom=custom)
         if not lexed.sections:
             others = tuple(f for f in SUPPORTED_FORMATS if f != format)
-            alternative = lex(text, styles=others)
+            alternative = lex(text, styles=others, custom=custom)
             if alternative.sections:
                 names = ', '.join(repr(s.name) for s in alternative.sections)
                 found = alternative.sections[0].style
@@ -77,7 +84,9 @@ def parse_document(text, format=None):
                     f'section syntax'
                 )
         resolved = format
-    sections = tuple(_build_section(section) for section in lexed.sections)
+    sections = tuple(
+        _build_section(section, custom) for section in lexed.sections
+    )
     # The signature line is kept in the metadata rather than the summary: it
     # describes the object it was written for, so it is written back out for
     # that object and is never inherited by another.
@@ -91,17 +100,37 @@ def parse_document(text, format=None):
     )
 
 
-def _build_section(lexed):
-    """Build one `Section` from one lexed section."""
-    kind = section_kind(lexed.name)
+def _build_section(lexed, custom=None):
+    """Build one `Section` from one lexed section.
+
+    A declared section is read as the section it resembles and keeps the
+    declared kind, which travels with it so that the document can be
+    rendered and inherited from without the declaration being supplied
+    again. A title declared without a kind, like one that was never declared
+    at all, is preserved verbatim and never interpreted.
+    """
+    (declared, kind) = declared_kind(custom, lexed.name)
+    if not declared:
+        kind = section_kind(lexed.name)
     if kind is None:
         # An unrecognized section is preserved verbatim and is never
         # interpreted; see specification sections 13 and 30.
         return Section(name=lexed.name, kind=None, text=lexed.body)
+    # Only a declared kind has to be carried; a registered one is found by
+    # name wherever the document goes.
+    own = kind if declared else None
     if not kind.structured:
-        return Section(name=lexed.name, kind=kind.name, text=lexed.body)
+        return Section(
+            name=lexed.name, kind=kind.name, text=lexed.body, custom=own
+        )
     if lexed.style == 'numpy':
         (text, items) = _numpy.parse_items(lexed.body, kind)
     else:
         (text, items) = _google.parse_items(lexed.body, kind, lexed.name)
-    return Section(name=lexed.name, kind=kind.name, items=items, text=text)
+    return Section(
+        name=lexed.name,
+        kind=kind.name,
+        items=items,
+        text=text,
+        custom=own,
+    )

@@ -17,6 +17,11 @@ from docshare import (
     docwrap,
 )
 from docshare._cache import DEFAULT_MAXSIZE, documentation, set_docinfo
+from docshare._sections import (
+    IDENTITY_NAME,
+    IDENTITY_NAME_OR_INDEX,
+    normalize_custom,
+)
 
 PARAMS = 'S.\n\nParameters\n----------\nx : int\n    The x.\n'
 OTHER = 'S.\n\nParameters\n----------\ny : str\n    The y.\n'
@@ -147,12 +152,12 @@ def test_two_objects_documented_differently_do_not():
 
 def test_the_cache_is_keyed_by_the_format_and_the_docstring():
     docinfo(make_function())
-    assert list(doccache) == [(None, PARAMS)]
+    assert list(doccache) == [(None, None, PARAMS)]
 
 
 def test_an_explicit_format_is_part_of_the_key():
     docinfo(make_function(), format='numpy')
-    assert list(doccache) == [('numpy', PARAMS)]
+    assert list(doccache) == [('numpy', None, PARAMS)]
 
 
 def test_a_reassigned_docstring_misses_and_is_reparsed():
@@ -356,8 +361,8 @@ def test_the_oldest_entry_is_discarded_first():
     docinfo('First.')
     docinfo('Second.')
     docinfo('Third.')
-    assert (None, 'First.') not in doccache
-    assert (None, 'Third.') in doccache
+    assert (None, None, 'First.') not in doccache
+    assert (None, None, 'Third.') in doccache
 
 
 def test_reading_an_entry_makes_it_recent():
@@ -366,8 +371,8 @@ def test_reading_an_entry_makes_it_recent():
     docinfo('Second.')
     docinfo('First.')  # touches it
     docinfo('Third.')
-    assert (None, 'First.') in doccache
-    assert (None, 'Second.') not in doccache
+    assert (None, None, 'First.') in doccache
+    assert (None, None, 'Second.') not in doccache
 
 
 def test_lowering_the_bound_discards_at_once():
@@ -400,19 +405,19 @@ def test_the_default_bound_is_generous():
 def test_the_cache_is_a_mapping():
     docinfo(make_function())
     assert len(doccache) == 1
-    assert (None, PARAMS) in doccache
-    assert isinstance(doccache[(None, PARAMS)], Document)
-    assert next(iter(doccache.values())) is doccache[(None, PARAMS)]
+    assert (None, None, PARAMS) in doccache
+    assert isinstance(doccache[(None, None, PARAMS)], Document)
+    assert next(iter(doccache.values())) is doccache[(None, None, PARAMS)]
 
 
 def test_an_entry_can_be_removed():
     docinfo(make_function())
-    del doccache[(None, PARAMS)]
+    del doccache[(None, None, PARAMS)]
     assert len(doccache) == 0
 
 
 def test_an_entry_can_be_supplied_by_hand():
-    doccache[(None, 'Invented.')] = Document(summary='Invented.')
+    doccache[(None, None, 'Invented.')] = Document(summary='Invented.')
     assert docinfo('Invented.').summary == 'Invented.'
 
 
@@ -423,8 +428,8 @@ def test_the_cache_reports_its_size_and_bound():
 
 def test_an_independent_cache_can_be_made():
     other = DocCache(maxsize=1)
-    other[(None, 'a')] = Document(summary='A.')
-    other[(None, 'b')] = Document(summary='B.')
+    other[(None, None, 'a')] = Document(summary='A.')
+    other[(None, None, 'b')] = Document(summary='B.')
     assert len(other) == 1
     assert len(doccache) == 0
 
@@ -518,7 +523,7 @@ def test_composition_records_the_composed_document():
 
     recorded = docinfo(wrapper)
     assert recorded.section('parameters').items[0].names == ('x',)
-    assert doccache[(None, wrapper.__doc__)] is recorded
+    assert doccache[(None, None, wrapper.__doc__)] is recorded
 
 
 def test_a_composed_object_can_itself_be_inherited_from():
@@ -616,8 +621,9 @@ def test_source_document_does_not_read_a_documents_own_class_docstring():
         'a bare docstring',
         42,
         ('numpy',),
-        (None, 'a', 'b'),
-        ['numpy', 'a'],
+        (None, 'a'),
+        (None, None, 'a', 'b'),
+        ['numpy', None, 'a'],
         None,
     ],
 )
@@ -630,17 +636,23 @@ def test_a_malformed_key_is_rejected(key):
 
 def test_an_unsupported_format_in_a_key_is_rejected():
     with pytest.raises(ValueError, match='not a documentation format'):
-        doccache[('rest', 'text')] = Document()
+        doccache[('rest', None, 'text')] = Document()
 
 
 def test_a_non_string_docstring_in_a_key_is_rejected():
     with pytest.raises(TypeError, match='string or None'):
-        doccache[(None, 42)] = Document()
+        doccache[(None, None, 42)] = Document()
 
 
 @pytest.mark.parametrize(
     'key',
-    [(None, 'text'), ('numpy', 'text'), ('google', 'text'), (None, None)],
+    [
+        (None, None, 'text'),
+        ('numpy', None, 'text'),
+        ('google', None, 'text'),
+        (None, None, None),
+        (None, normalize_custom({'Inputs': 'Parameters'}), 'text'),
+    ],
 )
 def test_every_well_formed_key_is_accepted(key):
     doccache[key] = Document(summary='X.')
@@ -691,4 +703,89 @@ def test_every_key_the_library_writes_is_well_formed():
     assert len(doccache) >= 5
     for key in doccache:
         _check_key(key)
-        assert isinstance(key, tuple) and len(key) == 2
+        assert isinstance(key, tuple) and len(key) == 3
+
+
+# Declarations are per call ##################################################
+
+DECLARED = """Fit a model.
+
+Parameters
+----------
+w : array
+    Fitted weights.
+
+Inputs
+------
+x : array
+    Observed data.
+"""
+
+
+def test_two_declarations_of_one_text_are_two_records():
+    # This is the property the whole design protects: what one call declares
+    # cannot change what another call sees. The cache would break it if the
+    # declaration were not part of the key.
+    plain = docinfo(DECLARED)
+    declared = docinfo(DECLARED, custom={'Inputs': 'Parameters'})
+    assert plain.section('Inputs').opaque
+    assert declared.section('Inputs').spec.name == 'inputs'
+    assert docinfo(DECLARED).section('Inputs').opaque
+
+
+def test_the_declaration_order_of_two_calls_does_not_matter():
+    declared = docinfo(DECLARED, custom={'Inputs': 'Parameters'})
+    plain = docinfo(DECLARED)
+    assert declared.section('Inputs').spec is not None
+    assert plain.section('Inputs').spec is None
+
+
+def test_declarations_that_read_alike_share_one_record():
+    # A declaration is identified by how it reads a document, not by how it
+    # was spelled: the title may carry its Google colon, and the section it
+    # resembles may be named in either format.
+    first = docinfo(DECLARED, custom={'Inputs': 'Parameters'})
+    second = docinfo(DECLARED, custom={'Inputs:': 'Args'})
+    assert second is first
+
+
+def test_declarations_that_read_differently_do_not_share_a_record():
+    first = docinfo(DECLARED, custom={'Inputs': 'Parameters'})
+    second = docinfo(DECLARED, custom={'Inputs': 'Returns'})
+    assert second is not first
+    # They differ in how the section's items are identified, which is what
+    # the declaration borrows and what inheritance then depends on.
+    assert first.section('Inputs').spec.identity == IDENTITY_NAME
+    assert second.section('Inputs').spec.identity == IDENTITY_NAME_OR_INDEX
+
+
+def test_docparse_never_consults_the_cache_for_a_declaration():
+    docinfo(DECLARED, custom={'Inputs': 'Parameters'})
+    assert docparse(DECLARED).section('Inputs').opaque
+
+
+def test_forgetting_a_document_forgets_every_declaration_of_it():
+    def f():
+        pass
+
+    f.__doc__ = DECLARED
+    docinfo(f)
+    docinfo(f, custom={'Inputs': 'Parameters'})
+    docinfo(f, format='numpy', custom={'Inputs': 'Parameters'})
+    clear_docinfo(f)
+    assert not [key for key in doccache if key[2] == DECLARED]
+
+
+def test_a_recorded_document_answers_a_request_that_declares_nothing():
+    # A rendered docstring does not carry its declaration, so the record is
+    # filed under the plain key too.
+    recorded = Document(summary='Composed.')
+    declared = normalize_custom({'Inputs': 'Parameters'})
+    set_docinfo(None, recorded, text='Some text.', custom=declared)
+    assert doccache[(None, None, 'Some text.')] is recorded
+    assert doccache[(None, declared, 'Some text.')] is recorded
+
+
+def test_a_malformed_declaration_in_a_key_is_rejected():
+    with pytest.raises(TypeError, match='normalized mapping'):
+        doccache[(None, 'Inputs', 'text')] = Document()

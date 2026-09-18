@@ -48,8 +48,10 @@ __all__ = (
     'TITLE_CHARACTERS',
     'SectionKind',
     'custom_kind',
+    'declared_kind',
     'iter_section_kinds',
     'kind_name',
+    'normalize_custom',
     'normalize_title',
     'render_kind',
     'section_kind',
@@ -352,6 +354,119 @@ def kind_name(title):
     return normalize_title(title).replace(' ', '_')
 
 
+def _canonical_title(title):
+    """Return a declared title as it should be written in a document.
+
+    A Google header is written with a trailing colon, so a caller may well
+    declare one that way; the colon is punctuation rather than part of the
+    title, and the renderer supplies it.
+    """
+    text = str(title).strip()
+    if text.endswith(':'):
+        text = text[:-1].strip()
+    return text
+
+
+def _check_title(text):
+    """Verify that a declared section title is one a docstring can express."""
+    if not _TITLE.match(text):
+        raise DocFormatError(
+            f'{text!r} cannot be a section title: a title is written with '
+            f'letters, digits, spaces and hyphens, and begins with a letter, '
+            f'in both supported formats'
+        )
+    if section_kind(text) is not None:
+        raise DocFormatError(
+            f'{text!r} is a section docshare already recognizes and cannot '
+            f'be declared as a custom section'
+        )
+
+
+def normalize_custom(custom):
+    """Normalize a declaration of custom sections.
+
+    A declaration says which sections a document has beyond the ones
+    `docshare` recognizes. Each is given as a title, and each title either
+    names a recognized section it resembles --- borrowing how its body is
+    read --- or ``None``, which declares the title to be a section without
+    saying anything about what it means, so that its body is preserved
+    exactly as an unrecognized NumPy section is.
+
+    The result is hashable, because it belongs in the cache key: the same
+    text read under two declarations is two different documents.
+
+    Parameters
+    ----------
+    custom : mapping, iterable of str, str, or None
+        The declaration. A mapping gives each title the section it
+        resembles; an iterable of titles, or a single title, declares each
+        without one.
+
+    Returns
+    -------
+    FrozenDict or None
+        Each declared title, normalized, mapped to the kind it declares or
+        to ``None``. Declaring nothing yields ``None`` rather than an empty
+        mapping, so that a request that declares nothing has the same cache
+        key it had before declarations existed.
+
+    Raises
+    ------
+    DocFormatError
+        If a title is one `docshare` already recognizes, is not one a
+        docstring could express, is declared twice, or resembles a section
+        that is not recognized.
+    """
+    if custom is None:
+        return None
+    if isinstance(custom, str):
+        custom = (custom,)
+    if isinstance(custom, Mapping):
+        entries = list(custom.items())
+    else:
+        entries = [(title, None) for title in custom]
+    declared = {}
+    for title, like in entries:
+        text = _canonical_title(title)
+        key = normalize_title(text)
+        if key in declared:
+            raise DocFormatError(
+                f'the section {text!r} is declared more than once; titles '
+                f'are compared without regard to case or spacing'
+            )
+        if like is None:
+            _check_title(text)
+            declared[key] = None
+        else:
+            declared[key] = custom_kind(text, like)
+    return FrozenDict(declared) if declared else None
+
+
+def declared_kind(custom, title):
+    """Return how a declaration reads a section title.
+
+    Parameters
+    ----------
+    custom : Mapping or None
+        A normalized declaration, as `normalize_custom` returns.
+    title : str
+        The section title as it appears in a docstring.
+
+    Returns
+    -------
+    tuple of (bool, SectionKind or None)
+        Whether the title was declared, and the kind it was declared as. A
+        title declared without a kind is declared and has none, which is not
+        the same as not being declared at all.
+    """
+    if not custom:
+        return (False, None)
+    key = normalize_title(title)
+    if key not in custom:
+        return (False, None)
+    return (True, custom[key])
+
+
 def custom_kind(title, like):
     """Build a `SectionKind` for a section the caller has declared.
 
@@ -389,18 +504,8 @@ def custom_kind(title, like):
         If the title is one `docshare` already recognizes, or is not one a
         docstring could express.
     """
-    text = str(title).strip()
-    if not _TITLE.match(text):
-        raise DocFormatError(
-            f'{text!r} cannot be a section title: a title is written with '
-            f'letters, digits, spaces and hyphens, and begins with a letter, '
-            f'in both supported formats'
-        )
-    if section_kind(text) is not None:
-        raise DocFormatError(
-            f'{text!r} is a section docshare already recognizes and cannot '
-            f'be declared as a custom section'
-        )
+    text = _canonical_title(title)
+    _check_title(text)
     model = like if isinstance(like, SectionKind) else section_kind(like)
     if model is None:
         raise DocFormatError(

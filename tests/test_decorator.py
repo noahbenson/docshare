@@ -12,11 +12,17 @@ from docshare import (
     DocMappingError,
     DocShareError,
     DocSignatureError,
+    _decorator,
     clear_docinfo,
     docinfo,
     docwrap,
 )
-from docshare._decorator import SECTION_ARGUMENTS
+from docshare._decorator import (
+    SECTION_ARGUMENTS,
+    _operations,
+    _Sources,
+)
+from docshare._model import Document
 
 
 @pytest.fixture(autouse=True)
@@ -1359,3 +1365,67 @@ def test_inheritall_does_not_pick_up_untitled_prose():
 
     assert 'The x.' in target.__doc__
     assert 'Trailing prose' not in target.__doc__
+
+
+# Sources are resolved before the engine sees them ###########################
+
+
+def _every_source(operations):
+    """Yield every source entry of every operation."""
+    for operation in operations:
+        for entry in operation.sources:
+            yield entry[0] if isinstance(entry, tuple) else entry
+
+
+def test_the_engine_is_handed_documents_rather_than_objects():
+    # Deciding how a source is read belongs to the decorator; the engine
+    # only composes. Every source is therefore parsed before any operation
+    # is built.
+    options = {
+        'format': 'numpy',
+        'inheritparams': source,
+        'inheritreturns': (source, described),
+        'inheritraises': ((source, 'ValueError'),),
+        'inheritsummary': described,
+        'inheritother': [(source, 'Efferents')],
+    }
+    operations = _operations(options, _Sources())
+    entries = list(_every_source(operations))
+    assert entries
+    assert all(isinstance(entry, Document) for entry in entries)
+
+
+def test_inheritall_also_hands_over_documents():
+    operations = _operations(
+        {'inheritall': source, 'inheritother': True}, _Sources()
+    )
+    entries = list(_every_source(operations))
+    assert entries
+    assert all(isinstance(entry, Document) for entry in entries)
+
+
+def test_a_source_named_by_several_arguments_is_parsed_once(monkeypatch):
+    calls = []
+    original = _decorator.source_document
+
+    def counted(obj):
+        calls.append(obj)
+        return original(obj)
+
+    monkeypatch.setattr(_decorator, 'source_document', counted)
+    _operations(
+        {
+            'inheritparams': source,
+            'inheritreturns': source,
+            'inheritraises': source,
+            'inheritnotes': source,
+        },
+        _Sources(),
+    )
+    assert calls == [source]
+
+
+def test_a_document_source_is_passed_straight_through():
+    parsed = docinfo(described, format='numpy')
+    resolved = _Sources().resolve(parsed)
+    assert resolved is parsed

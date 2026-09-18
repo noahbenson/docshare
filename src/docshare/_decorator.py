@@ -37,6 +37,7 @@ import difflib
 from ._cache import docparse, set_docinfo, source_document
 from ._exceptions import DocShareError
 from ._inherit import DESCRIPTION, SUMMARY, Operation, compose
+from ._model import Document
 from ._render import render_document
 from ._sections import iter_section_kinds, section_kind
 from ._signature import PARAMETER_KINDS, validate_signature
@@ -157,6 +158,48 @@ def _as_source_specs(value):
     return (value,)
 
 
+class _Sources:
+    """Resolves each inheritance source to a document, once per call.
+
+    Parsing belongs here rather than in the inheritance engine. The engine
+    composes documents; deciding how a source is *read* --- which format it
+    is written in, and which sections it declares --- is the decorator's
+    business, because that is where the caller says so. Resolving every
+    source before any operation is built also means each source is parsed
+    once, whatever number of arguments name it.
+    """
+
+    __slots__ = ('_documents',)
+
+    def __init__(self):
+        # Keyed by identity, because a source is an arbitrary object and
+        # need not be comparable. The object is kept alongside its document
+        # so that it stays alive, and its identity therefore stays unique,
+        # for as long as this resolver does.
+        self._documents = {}
+
+    def document(self, source):
+        """Return the document for one source object."""
+        if isinstance(source, Document):
+            return source
+        found = self._documents.get(id(source))
+        if found is None:
+            found = (source, source_document(source))
+            self._documents[id(source)] = found
+        return found[1]
+
+    def resolve(self, entry):
+        """Resolve one source specification, keeping any item binding."""
+        if isinstance(entry, tuple) and len(entry) == 2:
+            (obj, key) = entry
+            return (self.document(obj), key)
+        return self.document(entry)
+
+    def resolve_all(self, value):
+        """Normalize and resolve an inheritance-source argument."""
+        return tuple(self.resolve(e) for e in _as_source_specs(value))
+
+
 def _as_identities(value):
     """Normalize a drop argument into a frozenset of identities."""
     if value is None:
@@ -216,7 +259,7 @@ def _unknown_argument(name):
     raise DocShareError(f'docwrap() got an unexpected argument {name!r}{hint}')
 
 
-def _collect(options):
+def _collect(options, sources):
     """Sort the decorator's per-section arguments by role and kind.
 
     Every name is known to be valid: `_apply` rejects unrecognized arguments
@@ -230,7 +273,7 @@ def _collect(options):
             continue
         (role, kind) = SECTION_ARGUMENTS[name]
         if role == 'inherit':
-            inherits[kind] = _as_source_specs(value)
+            inherits[kind] = sources.resolve_all(value)
         elif role == 'drop':
             drops[kind] = _as_identities(value)
         else:
@@ -238,10 +281,10 @@ def _collect(options):
     return (inherits, drops, maps)
 
 
-def _from_general_inherit(value):
+def _from_general_inherit(value, sources):
     """Expand the generalized ``inherit={'Parameters': source}`` argument."""
     result = {}
-    for key, sources in dict(value or {}).items():
+    for key, entry in dict(value or {}).items():
         kind = section_kind(key)
         if kind is None:
             raise DocShareError(
@@ -249,29 +292,31 @@ def _from_general_inherit(value):
                 f'recognize; inherit an unrecognized section with '
                 f'inheritother=[(source, {key!r})] instead'
             )
-        result[kind.name] = _as_source_specs(sources)
+        result[kind.name] = sources.resolve_all(entry)
     return result
 
 
-def _from_inheritall(value, include_opaque):
+def _from_inheritall(value, include_opaque, sources):
     """Expand ``inheritall`` into one operation per section of the sources."""
     specs = _as_source_specs(value)
     if not specs:
         return ({}, ())
-    sources = [spec[0] if isinstance(spec, tuple) else spec for spec in specs]
     inherits = {}
     opaque = []
-    for source in sources:
-        for section in source_document(source).sections:
+    for spec in specs:
+        # An item binding says nothing about which sections a source has.
+        entry = spec[0] if isinstance(spec, tuple) else spec
+        doc = sources.document(entry)
+        for section in doc.sections:
             if section.kind is not None:
-                inherits.setdefault(section.kind, []).append(source)
+                inherits.setdefault(section.kind, []).append(doc)
             elif include_opaque and section.name:
                 # A prose block between sections has no name to ask for.
-                opaque.append((source, section.name))
+                opaque.append((doc, section.name))
     return ({k: tuple(v) for (k, v) in inherits.items()}, tuple(opaque))
 
 
-def _component_operations(options):
+def _component_operations(options, sources):
     """Build the operations inheriting the summary and the description.
 
     These are not sections, so they are never implied by inheriting one.
@@ -281,10 +326,10 @@ def _component_operations(options):
     """
     components = {}
     for name, component in COMPONENT_ARGUMENTS.items():
-        specs = _as_source_specs(options.get(name))
+        specs = sources.resolve_all(options.get(name))
         if specs:
             components[component] = specs
-    from_all = _as_source_specs(options.get('inheritall'))
+    from_all = sources.resolve_all(options.get('inheritall'))
     if from_all:
         for component in COMPONENT_ARGUMENTS.values():
             components.setdefault(component, from_all)
@@ -295,10 +340,10 @@ def _component_operations(options):
     )
 
 
-def _operations(options):
+def _operations(options, sources):
     """Build the ordered operations the decorator's arguments describe."""
-    (inherits, drops, maps) = _collect(options)
-    general = _from_general_inherit(options.get('inherit'))
+    (inherits, drops, maps) = _collect(options, sources)
+    general = _from_general_inherit(options.get('inherit'), sources)
     conflicts = sorted(set(general) & set(inherits))
     if conflicts:
         names = ', '.join(f'inherit{_short(kind)}' for kind in conflicts)
@@ -310,21 +355,21 @@ def _operations(options):
     other = options.get('inheritother')
     include_opaque = other is True
     (from_all, opaque_from_all) = _from_inheritall(
-        options.get('inheritall'), include_opaque
+        options.get('inheritall'), include_opaque, sources
     )
-    for kind, sources in from_all.items():
-        inherits.setdefault(kind, sources)
+    for kind, documents in from_all.items():
+        inherits.setdefault(kind, documents)
     # The summary and the description open the document, so they are
     # composed before the sections that follow them.
-    operations = list(_component_operations(options))
+    operations = list(_component_operations(options, sources))
     for kind in iter_section_kinds():
-        sources = inherits.get(kind.name)
-        if not sources:
+        documents = inherits.get(kind.name)
+        if not documents:
             continue
         operations.append(
             Operation(
                 kind=kind.name,
-                sources=sources,
+                sources=documents,
                 drop=drops.get(kind.name, frozenset()),
                 mapping=maps.get(kind.name, {}),
             )
@@ -337,9 +382,9 @@ def _operations(options):
                     'inheritother expects (source, section name) pairs, '
                     f'but got {entry!r}'
                 )
-            opaque.append(entry)
-    for source, name in opaque:
-        operations.append(Operation(kind=None, name=name, sources=(source,)))
+            opaque.append((sources.document(entry[0]), entry[1]))
+    for doc, name in opaque:
+        operations.append(Operation(kind=None, name=name, sources=(doc,)))
     return tuple(operations)
 
 
@@ -369,7 +414,7 @@ def _apply(obj, options):
         extraparam=extraparam,
         parammap=options.get('parammap'),
     )
-    operations = _operations(options)
+    operations = _operations(options, _Sources())
     if not operations:
         # Nothing was composed, so the docstring is left exactly as written.
         set_docinfo(obj, doc, format=format)

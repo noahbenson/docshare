@@ -792,12 +792,11 @@ def _apply(obj, options):
 
 _T = TypeVar('_T')
 
+
 @overload
 def docwrap(obj: _T, /, **options: Any) -> _T: ...
 @overload
-def docwrap(
-    obj: None = ..., /, **options: Any
-) -> Callable[[_T], _T]: ...
+def docwrap(obj: None = ..., /, **options: Any) -> Callable[[_T], _T]: ...
 def docwrap(obj=None, /, **options):
     """Compose an object's documentation from itself and its sources.
 

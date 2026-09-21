@@ -114,6 +114,19 @@ follows [semantic versioning](https://semver.org/spec/v2.0.0.html).
   matched no item and, because a bound source takes no part in the ordinary
   search either, inherited nothing at all without saying so.
 
+## [0.2.1]
+
+### Added
+
+* `docwrap` is annotated as an identity-preserving generic decorator, so a
+  type checker sees through it to the annotated object it returns instead of
+  treating the decorated function as `Any`. The annotations describe the
+  behavior the decorator already had (it returns the object it was given);
+  nothing about the decorator changes at run time. Libraries that decorate
+  many of their own functions with `docwrap`--`immlib` decorates most of
+  `immlib.math` with it--can now expose their own annotations to type
+  checkers.
+
 ## [0.1.0]
 
 First release.

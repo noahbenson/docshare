@@ -35,6 +35,7 @@ from __future__ import annotations
 import difflib
 import keyword
 from collections.abc import Mapping
+from typing import Any, Callable, TypeVar, overload
 
 from ._cache import docinfo, docparse, set_docinfo, source_document
 from ._exceptions import DocShareError
@@ -789,6 +790,14 @@ def _apply(obj, options):
     return obj
 
 
+_T = TypeVar('_T')
+
+@overload
+def docwrap(obj: _T, /, **options: Any) -> _T: ...
+@overload
+def docwrap(
+    obj: None = ..., /, **options: Any
+) -> Callable[[_T], _T]: ...
 def docwrap(obj=None, /, **options):
     """Compose an object's documentation from itself and its sources.
 

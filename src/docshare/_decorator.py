@@ -34,8 +34,8 @@ from __future__ import annotations
 
 import difflib
 import keyword
-from collections.abc import Mapping
-from typing import Any, Callable, TypeVar, overload
+from collections.abc import Callable, Mapping
+from typing import Any, TypeVar, overload
 
 from ._cache import docinfo, docparse, set_docinfo, source_document
 from ._exceptions import DocShareError

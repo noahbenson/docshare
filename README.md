@@ -98,6 +98,8 @@ Python 3.10 and later. **No runtime dependencies.**
 * Keeps grouped declarations such as `x, y : float` intact.
 * Reads sections of your own, declared per call, so that a library's
   conventions need not become everyone's.
+* Composes and renders documentation without decorating anything, with
+  `doccompose` and `docrender`.
 * Checks documented parameters against the callable's signature.
 * Works with functions, methods, classes, properties, static methods and
   class methods.

@@ -107,7 +107,9 @@ otherwise covered. Each links to the page that develops it.
 11. **The resulting `__doc__` is ordinary documentation text.**
 12. **{py:func}`~docshare.docparse` parses from source;**
     **{py:func}`~docshare.docinfo` retrieves cached information.** See
-    {doc}`reading`.
+    {doc}`reading`. Composition does not require an object either:
+    {py:func}`~docshare.doccompose` returns the composed document and
+    {py:func}`~docshare.docrender` the rendered text. See {doc}`standalone`.
 13. **The document model is independent of NumPy versus Google syntax.** See
     {doc}`formats`.
 14. **Inheriting an item does not require its target and source names to

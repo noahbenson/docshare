@@ -220,7 +220,16 @@ def test_every_documented_exception_exists(name):
 
 
 @pytest.mark.parametrize(
-    'name', ['docwrap', 'docparse', 'docinfo', 'doccache', 'clear_docinfo']
+    'name',
+    [
+        'docwrap',
+        'doccompose',
+        'docrender',
+        'docparse',
+        'docinfo',
+        'doccache',
+        'clear_docinfo',
+    ],
 )
 def test_the_documented_public_api_exists(name):
     assert name in NAMED

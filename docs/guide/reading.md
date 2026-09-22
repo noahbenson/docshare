@@ -1,6 +1,8 @@
 # Reading documentation
 
-Two functions parse documentation without decorating anything.
+Two functions parse documentation without decorating anything. To *compose*
+documentation the same way, without decorating an object, see
+{doc}`standalone`.
 
 ```python
 from docshare import docparse, docinfo

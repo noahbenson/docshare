@@ -4,10 +4,19 @@ All notable changes to `docshare` are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 follows [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.3.0]
 
 ### Added
 
+* `doccompose` and `docrender` compose documentation without decorating
+  anything. `doccompose` returns the composed `Document` and `docrender` the
+  rendered docstring, both accepting every argument `docwrap` does, and any
+  of a docstring, an object, or an already-parsed `Document` as the thing to
+  work on. An object brings its signature, so the documentation is validated
+  and its parameters ordered as for `docwrap`; a string or a `Document` has
+  none, so validation is skipped and a parameter section is driven by its
+  sources. Because they install nothing, both work on objects whose
+  `__doc__` cannot be written, and neither writes to the cache.
 * A documentation site, built with Sphinx and published to GitHub Pages. The
   README is now a summary that links to it.
 * An inheritance source may be an already-parsed `Document`, as returned by
@@ -168,6 +177,6 @@ First release.
 * No runtime dependencies.
 * Requires Python 3.10 or later.
 
-[Unreleased]: https://github.com/noahbenson/docshare/compare/v0.2.1...HEAD
+[0.3.0]: https://github.com/noahbenson/docshare/releases/tag/v0.3.0
 [0.2.1]: https://github.com/noahbenson/docshare/releases/tag/v0.2.1
 [0.1.0]: https://github.com/noahbenson/docshare/releases/tag/v0.1.0

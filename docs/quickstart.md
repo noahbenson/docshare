@@ -108,4 +108,6 @@ unnoticed. See {doc}`guide/signatures`.
 * {doc}`guide/inheriting` --- every way to say what to inherit.
 * {doc}`guide/formats` --- how the two styles are read and written.
 * {doc}`guide/reading` --- parsing documentation without decorating anything.
+* {doc}`guide/standalone` --- composing and rendering documentation without
+  decorating anything.
 * {doc}`migrating` --- coming from `docrep`.

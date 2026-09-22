@@ -11,6 +11,8 @@ NumPy style --- the format this library reads.
 
 ```{eval-rst}
 .. autofunction:: docwrap
+.. autofunction:: doccompose
+.. autofunction:: docrender
 ```
 
 ## Reading

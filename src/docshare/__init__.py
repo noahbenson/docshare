@@ -9,9 +9,11 @@ documentation between related functions, methods, and classes while leaving
 ordinary Python docstrings as the final documentation source consumed by
 `help()`, IDEs, and documentation generators such as Sphinx.
 
-The core API consists of the `docshare` decorator, which composes documentation
+The core API consists of the `docwrap` decorator, which composes documentation
 at decoration time, along with `docparse` and `docinfo`, which respectively
 parse and cache the semantic representation of an object's documentation.
+`doccompose` and `docrender` do the same composition without an object,
+returning the composed document or the rendered text.
 """
 
 from ._cache import (
@@ -21,7 +23,7 @@ from ._cache import (
     docinfo,
     docparse,
 )
-from ._decorator import docwrap
+from ._decorator import doccompose, docrender, docwrap
 from ._exceptions import (
     DocFormatError,
     DocInheritanceError,
@@ -33,7 +35,7 @@ from ._exceptions import (
 from ._model import Document, FrozenDict, Item, Section
 from ._sections import SUPPORTED_FORMATS, SectionKind, section_kind
 
-__version__ = '0.2.1'
+__version__ = '0.3.0'
 
 __all__ = (
     'SUPPORTED_FORMATS',
@@ -52,8 +54,10 @@ __all__ = (
     '__version__',
     'clear_docinfo',
     'doccache',
+    'doccompose',
     'docinfo',
     'docparse',
+    'docrender',
     'docwrap',
     'section_kind',
 )

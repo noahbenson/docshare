@@ -95,6 +95,7 @@ deferred
 * Reads and writes both NumPy and Google style, and converts between them.
 * Understands the full numpydoc section set, and preserves sections it does
   not understand rather than discarding them.
+* Composes and renders documentation without decorating anything.
 * Checks documented parameters against the callable's signature.
 * Keeps grouped declarations such as `x, y : float` intact.
 * Safe to use from several threads.

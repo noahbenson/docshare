@@ -59,6 +59,30 @@ DESCRIPTION = '@description'
 COMPONENTS = (SUMMARY, DESCRIPTION)
 
 
+class _TextTarget:
+    """Stands in for the documented object when composing plain text.
+
+    `docrender` and `doccompose` accept a docstring or a parsed document, in
+    which case there is no object whose signature could order a section's
+    items or be validated against. Passing an instance of this class in the
+    object's place gives `signature_of` nothing to inspect, so no validation
+    is attempted, and names the target as "the documentation" in the errors
+    that would otherwise say ``None``.
+
+    It is deliberately a plain instance and not the class, and defines no
+    ``__call__`` and no ``__signature__``: any of those would give
+    `inspect.signature` a valid, empty signature, which would make parameter
+    sections signature-ordered with nothing in them and silently drop every
+    parameter a source could have supplied.
+    """
+
+    __qualname__ = 'the documentation'
+
+
+#: The stand-in object for a document with no object behind it.
+_TEXT_TARGET = _TextTarget()
+
+
 class Operation(NamedTuple):
     """One requested inheritance of one section.
 
@@ -510,6 +534,9 @@ def compose(obj, doc, operations, *, extraparam=None):
     ----------
     obj : object
         The object being documented, whose signature orders its parameters.
+        When the documentation has no object behind it, `_TEXT_TARGET` stands
+        in: it has no signature, so parameter sections are ordered by the
+        documentation and its sources instead.
     doc : Document
         The target's own documentation, which always takes precedence.
     operations : sequence of Operation

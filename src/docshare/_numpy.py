@@ -15,8 +15,7 @@ description::
         Cartesian coordinates.
 
 A declaration may name several parameters at once, as above. Such an item is
-a group, and it is kept intact rather than being split into separate items,
-as required by specification section 21.
+a group, and it is kept intact rather than being split into separate items.
 """
 
 from __future__ import annotations

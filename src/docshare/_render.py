@@ -7,10 +7,10 @@
 """Rendering of a `docshare.Document` back into ordinary docstring text.
 
 The result is an ordinary docstring: nothing about it requires `docshare` to
-read it, which is the requirement of specification section 57. Section and
-item order, grouped declarations, types, and opaque sections are all
-preserved, so that parsing the result yields the document that was rendered,
-as required by specification sections 46 and 47.
+read it, and nothing downstream needs to know `docshare` was involved.
+Section and item order, grouped declarations, types, and opaque sections are
+all preserved, so that parsing the result yields the document that was
+rendered.
 
 Rendering normalizes presentation: indentation, blank lines between sections,
 and the spelling of a recognized section's title all take their canonical

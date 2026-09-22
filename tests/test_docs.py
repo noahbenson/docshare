@@ -6,9 +6,9 @@ and an exception for every failure. Both are generated from the section
 registry, so both can drift; these tests compare what is written against what
 exists rather than trusting either.
 
-The specification and the record of deferred cases are excluded from the
-drift checks. They are historical documents that quote argument names as they
-were at the time, which is the point of keeping them.
+The record of deferred cases and the changelog are excluded from the drift
+checks. They are historical documents that quote argument names as they were
+at the time, which is the point of keeping them.
 """
 
 import os
@@ -36,7 +36,7 @@ README = ROOT / 'README.md'
 INSTRUCTIONAL = sorted(
     path
     for path in [README, *DOCS.rglob('*.md')]
-    if path.name not in {'spec.md', 'deferred.md', 'changelog.md'}
+    if path.name not in {'deferred.md', 'changelog.md'}
 )
 
 TEXT = '\n'.join(path.read_text() for path in INSTRUCTIONAL)

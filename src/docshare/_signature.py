@@ -16,9 +16,9 @@ something the author must declare deliberately, which is what `extraparam` is
 for.
 
 Some documented parameters are genuinely invisible in a signature, because
-they are consumed from ``**kwargs``. The specification requires those to be
-declared rather than inferred, since the presence of ``**kwargs`` would
-otherwise excuse every possible typo.
+they are consumed from ``**kwargs``. Those must be declared rather than
+inferred, since the presence of ``**kwargs`` would otherwise excuse every
+possible typo.
 """
 
 from __future__ import annotations

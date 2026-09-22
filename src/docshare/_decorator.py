@@ -9,9 +9,9 @@
 `docwrap` is the whole library seen from the outside: it parses the
 decorated object's documentation, performs the inheritance the caller asked
 for, renders the result, and assigns it back. Everything it accepts is
-shorthand for the generalized inheritance described in specification section
-43, and the shorthand is generated from the section registry rather than
-written out section by section, so that the vocabulary is uniform.
+shorthand for the generalized inheritance the library performs, and the
+shorthand is generated from the section registry rather than written out
+section by section, so that the vocabulary is uniform.
 
 For a section named by its short form --- ``params`` for Parameters,
 ``seealso`` for See Also, and so on --- the decorator accepts
@@ -27,7 +27,7 @@ so ``ignore<short>`` names one of the source's items: Raises offers
 
 Composition happens once, when the decorator runs. Nothing is recomputed
 afterwards, and a docstring assigned later by another decorator is outside
-`docshare`'s control, as specification sections 34 and 35 describe.
+`docshare`'s control.
 """
 
 from __future__ import annotations

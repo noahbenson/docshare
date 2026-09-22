@@ -86,7 +86,6 @@ api
 :caption: Project
 
 changelog
-spec
 deferred
 ```
 

@@ -155,7 +155,7 @@ def test_the_decorator_returns_the_same_object():
     assert docwrap(format='numpy')(f) is f
 
 
-# Section 61.10: composition happens once ####################################
+# composition happens once ####################################################
 
 
 def test_a_docstring_is_left_alone_when_nothing_is_inherited():
@@ -379,7 +379,7 @@ def test_functools_wraps_carries_the_composed_documentation():
     assert wrapper.__doc__ == target.__doc__
 
 
-# Section 57: the result is ordinary documentation ###########################
+# the result is ordinary documentation ########################################
 
 
 def test_help_shows_the_composed_documentation():
@@ -1040,8 +1040,8 @@ def test_the_format_is_detected_from_the_targets_own_docstring():
 
 
 def test_the_format_argument_still_asserts_how_the_docstring_is_written():
-    # format= says what the docstring is written in, per specification
-    # section 4.1; it is render= that says how to write the result.
+    # format= says what the docstring is written in; it is render= that says
+    # how to write the result.
     def f(foo, bar=1):
         """F.
 

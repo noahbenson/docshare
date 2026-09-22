@@ -207,7 +207,9 @@ Give one format for all sources, or a mapping from a format to the sources
 written in it.
 
 Neither argument accepts an already-parsed {py:class}`~docshare.Document`: a
-document was read when it was parsed and cannot be read again. Pass the
+document was read when it was parsed and cannot be read again. This is
+particular to these two arguments --- an ordinary inheritance source may be a
+{py:class}`~docshare.Document`, as {doc}`inheriting` describes. Pass the
 object it came from, or parse it the way you want it and pass that.
 
 ## The three format arguments

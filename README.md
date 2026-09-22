@@ -53,7 +53,7 @@ def logquuxatize(foo, bar=1, base=None):
 nothing in the result hints that any of it was shared.
 
 ```
->>> pring(logquuxatize.__doc__)
+>>> print(logquuxatize.__doc__)
 Returns the log of the quux of arguments `foo` and `bar`.
 
 Parameters
@@ -115,9 +115,9 @@ The full documentation lives at
 * [API reference](https://noahbenson.github.io/docshare/api.html)
 * [Coming from `docrep`](https://noahbenson.github.io/docshare/migrating.html)
 
-The [specification](docs/spec.md) is the normative description the
-implementation is checked against, and [`docs/deferred.md`](docs/deferred.md)
-records the edge cases that were considered and how each was settled.
+The [guide](https://noahbenson.github.io/docshare/guide/index.html) describes
+how the library behaves, and [`docs/deferred.md`](docs/deferred.md) records
+the edge cases that were considered and how each was settled.
 
 ## Development
 

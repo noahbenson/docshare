@@ -64,7 +64,6 @@ else:
         'numpy': ('https://numpy.org/doc/stable', None),
     }
 
-templates_path = ['_templates']
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store', 'README.md']
 
 html_theme = 'furo'
@@ -76,6 +75,9 @@ html_theme_options = {
     'source_directory': 'docs/',
 }
 
-# Warnings are errors, so a broken reference fails the build rather than
-# quietly producing a broken page.
+# The Makefile, the CI workflow, and the test suite all build with `-W`, so a
+# broken reference fails the build rather than quietly producing a broken
+# page. `nitpicky` stays off so that a reference to an object outside the
+# library, which has no inventory to resolve against when the build is
+# offline, is not reported at all.
 nitpicky = False

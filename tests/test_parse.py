@@ -3,7 +3,7 @@
 
 The paired corpus below expresses the same documentation in both supported
 formats. Every pair is asserted to produce the same semantic document, which
-is the core promise of specification section 4.3.
+is the core promise that the representation is format-independent.
 """
 
 import pytest

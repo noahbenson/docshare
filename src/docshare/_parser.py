@@ -37,7 +37,7 @@ def parse_document(text, format=None, custom=None):
     text : str or None
         The raw documentation, typically an object's ``__doc__``. A value of
         ``None``, or a blank string, yields an empty document rather than an
-        error, as required by specification section 7.1.
+        error.
     format : str, optional
         The format the document must be written in. When this is ``None``,
         the default, the format is detected from the document itself.
@@ -114,7 +114,7 @@ def _build_section(lexed, custom=None):
         kind = section_kind(lexed.name)
     if kind is None:
         # An unrecognized section is preserved verbatim and is never
-        # interpreted; see specification sections 13 and 30.
+        # interpreted.
         return Section(name=lexed.name, kind=None, text=lexed.body)
     # Only a declared kind has to be carried; a registered one is found by
     # name wherever the document goes.

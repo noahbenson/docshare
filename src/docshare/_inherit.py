@@ -202,9 +202,8 @@ def _parameter_order(obj, doc, kind, extraparam, specs, mapping):
     """Decide the order the items of a name-identified section appear in.
 
     Every section that documents a callable's parameters is ordered by that
-    callable's signature, which is what specification section 37 asks for,
-    and which also settles what may be inherited: a source parameter the
-    target does not accept is not a candidate at all.
+    callable's signature, which also settles what may be inherited: a source
+    parameter the target does not accept is not a candidate at all.
 
     A section such as Attributes documents no parameters and has no
     signature to consult. There the target cannot say what exists, so the
@@ -524,8 +523,7 @@ def compose(obj, doc, operations, *, extraparam=None):
     -------
     Document
         The composed document. The target's summary and description are
-        replaced only by an operation that asks for them by name, per
-        specification section 31.
+        replaced only by an operation that asks for them by name.
 
     Raises
     ------

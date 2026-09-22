@@ -10,7 +10,7 @@ Before either supported format is interpreted, a docstring is split into its
 summary, its description, and an ordered sequence of sections. Only the
 *boundaries* are found here: the body of each section is handed on verbatim,
 so that a section `docshare` does not understand can still be preserved
-exactly, as required by specification sections 13 and 30.
+exactly.
 
 Both supported formats are recognized at once, which is what makes automatic
 format detection possible: a document that uses NumPy underlines is NumPy, a

@@ -130,11 +130,11 @@ _MERGES = {
 
 
 # The type written when an item has a description but no type of its own.
-# The NumPy standard requires a type for every item of these sections --- its
-# specification says so of Returns and repeats it for Yields --- so one must
-# be written, and the base of the relevant hierarchy asserts no more than the
-# author did. Google style has no such requirement and writes no type at all,
-# which is how the two round-trip within their own format.
+# The NumPy standard requires a type for every item of these sections --- it
+# says so of Returns and repeats it for Yields --- so one must be written,
+# and the base of the relevant hierarchy asserts no more than the author did.
+# Google style has no such requirement and writes no type at all, which is
+# how the two round-trip within their own format.
 _PLACEHOLDERS = {
     'returns': 'object',
     'yields': 'object',

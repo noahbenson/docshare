@@ -46,6 +46,12 @@ follows [semantic versioning](https://semver.org/spec/v2.0.0.html).
   item declaration. A section whose items are identified by name may open
   with a description of the section as a whole; it is kept on the section,
   rendered ahead of the items, and is never inherited.
+* A guide page, `docs/guide/concepts`, now holds the design rationale, the
+  consolidated core invariants, the goals and non-goals, and the dependency
+  policy. The `docs/spec.md` design specification, which had fallen behind
+  the implementation, has been retired into the guide and removed; every
+  reference to it, in the source, the tests, and the other documents, now
+  names the behavior directly.
 
 ### Fixed
 
@@ -99,8 +105,7 @@ follows [semantic versioning](https://semver.org/spec/v2.0.0.html).
   the docstring alone. One text can be read two ways --- a NumPy declaration
   with an empty type has the shape of a Google section header --- and keyed
   by text alone, whichever format was asked for first answered every later
-  request as well, including the correct one. Specification section 8.1 has
-  been revised accordingly.
+  request as well, including the correct one.
 * An item described without a type, which is how Google style writes a
   return value, a raised error, or a warning, is now written in NumPy with
   the least specific type of its hierarchy --- `object`, `Exception`, or
@@ -163,5 +168,6 @@ First release.
 * No runtime dependencies.
 * Requires Python 3.10 or later.
 
-[Unreleased]: https://github.com/noahbenson/docshare/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/noahbenson/docshare/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/noahbenson/docshare/releases/tag/v0.2.1
 [0.1.0]: https://github.com/noahbenson/docshare/releases/tag/v0.1.0

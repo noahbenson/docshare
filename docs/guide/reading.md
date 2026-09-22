@@ -12,6 +12,9 @@ description, and an ordered sequence of sections, each holding items or text.
 The representation is immutable and does not depend on which format it was
 written in.
 
+An object with no docstring, or one that is empty, is not an error: it parses
+to an empty document, all of whose components are absent.
+
 {py:func}`~docshare.docinfo` answers from a cache instead, parsing only when
 it has nothing recorded. For an object `docwrap` has decorated, that record
 is the *composed* document --- everything inheritance assembled, not just
@@ -53,9 +56,9 @@ this would parse the docstring of the {py:class}`str` type itself.
 ## The cache
 
 {py:data}`docshare.doccache` is an ordinary mutable mapping from a
-`(format, docstring)` pair to the {py:class}`~docshare.Document` that pair
-parses to, bounded by `doccache.maxsize` and discarding its least recently
-used entry when full.
+`(format, custom, docstring)` triple to the {py:class}`~docshare.Document`
+that triple parses to, bounded by `doccache.maxsize` and discarding its least
+recently used entry when full.
 
 It is keyed by the documentation rather than by the object, so two objects
 documented alike share one record and a reassigned docstring simply misses.
@@ -72,6 +75,9 @@ as well --- including the correct one.
 So `docinfo(f, format='numpy')` and `docinfo(f, format='google')` are
 separate questions with separate answers, and asking one does not spoil the
 other.
+
+The declared sections are part of the key for the same reason: one text read
+under two different declarations is two documents. See {doc}`custom`.
 
 You may inspect, clear, resize or pre-load it:
 

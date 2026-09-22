@@ -177,3 +177,12 @@ Google style has a `Keyword Args:` section; the NumPy standard does not, and
 documents keyword arguments in `Parameters`. The distinction is kept in the
 model, so a Google document round-trips with it intact, and is merged only
 when writing NumPy.
+
+## What rendering preserves
+
+Rendering rewrites a document in the target format without rearranging or
+discarding anything: the order of the sections and of the items within them,
+grouped declarations, documented types, descriptions, and any section
+`docshare` did not recognize are all carried across. The only changes are the
+format-specific spellings --- section titles, and the type that Google style
+may omit but NumPy style requires.

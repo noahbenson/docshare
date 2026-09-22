@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Tests for prose that introduces a structured section.
 
-Specification section 31 asks that section descriptions be preserved. A
+Section descriptions are preserved. A
 structured section may open with prose about the section as a whole before
 its items begin; telling that apart from an item is syntactic rather than a
 guess, and only possible where items are named.

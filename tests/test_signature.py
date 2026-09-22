@@ -243,8 +243,8 @@ def test_an_undeclared_parameter_is_an_error():
 
 
 def test_a_kwargs_signature_does_not_excuse_an_undeclared_parameter():
-    # The specification requires these be declared rather than inferred,
-    # since **kwargs would otherwise excuse every possible typo.
+    # These must be declared rather than inferred, since **kwargs would
+    # otherwise excuse every possible typo.
     def f(**kwargs):
         pass
 

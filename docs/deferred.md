@@ -10,7 +10,7 @@ Add to this file whenever an edge case is knowingly left unresolved.
 
 ## 1. Section-level prose in a structured section --- RESOLVED
 
-*Raised in phase 2; resolved after phase 8. Specification section 31.*
+*Raised in phase 2; resolved after phase 8.*
 
 A structured section may open with prose describing the section as a whole:
 
@@ -52,13 +52,12 @@ A single bare identifier alone on a line, such as `None`, still reads as a
 declaration. That is ambiguous to a human reader too, and is left as it is.
 
 Section prose is the target's own and is never inherited: it describes the
-source's parameters, not the target's, for the same reason section 31 keeps a
-summary with the object that wrote it.
+source's parameters, not the target's, for the same reason a summary stays
+with the object that wrote it.
 
 ## 2. A parameter named after a section, declared with no type --- RESOLVED
 
-*Raised in phase 2; resolved after phase 8. Specification sections 4.2 and
-40.*
+*Raised in phase 2; resolved after phase 8.*
 
 A NumPy declaration with an empty type has the same shape as a Google section
 header: a title, a colon, and an indented body. Where the parameter's name is
@@ -85,13 +84,12 @@ rather than before one, and the README documents the case under formats.
 
 ## 3. A dashes line inside a prose section looks like a header --- ACCEPTED
 
-*Raised in phase 2; accepted as-is after phase 8. Specification sections 30
-and 47.*
+*Raised in phase 2; accepted as-is after phase 8.*
 
 A NumPy section header is a title underlined with at least three dashes, and
-the title need not be one `docshare` recognizes --- sections 13 and 29
-require an unknown section such as `Efferents` to be preserved, so any plain
-line above a rule of dashes opens a section. A prose section whose body
+the title need not be one `docshare` recognizes --- an unknown section such
+as `Efferents` must be preserved, so any plain line above a rule of dashes
+opens a section. A prose section whose body
 contains such a pair, as a hand-drawn table or a reStructuredText subsection
 does, is therefore split in two:
 
@@ -109,16 +107,16 @@ Accepted rather than fixed, because the consequence is restructuring without
 loss. The unrecognized title becomes an opaque section, whose body is
 preserved verbatim and never interpreted, so every line survives. The example
 above round-trips byte for byte; a hand-drawn table round-trips with one
-blank line inserted, which section 47 explicitly permits. numpydoc treats an
+blank line inserted, which is permitted. numpydoc treats an
 unknown underlined title the same way.
 
 Tightening the rule would mean either refusing unrecognized sections, which
-sections 13 and 29 forbid, or guessing from the title, which would be less
+the library forbids, or guessing from the title, which would be less
 predictable than the present behavior. A docstring that genuinely needs a
 dashes rule inside its prose can use a different underline character, which
 reStructuredText allows and this rule ignores.
 
-## 4. Cross-format rendering of keyword arguments is one-way
+## 4. Cross-format rendering of keyword arguments is one-way --- ACCEPTED
 
 *Raised in phase 1.*
 
@@ -128,13 +126,13 @@ in Google output, but a document rendered to NumPy and then re-parsed has
 lost it, and cannot be rendered back to Google with the split restored.
 
 This follows from the formats differing, not from a defect, and matches how
-the specification treats format-specific section names in section 45. It is
-recorded here only so that it is not rediscovered as a bug.
+each format treats its own section names. It is recorded here only so that it
+is not rediscovered as a bug.
 
 
-## 5. A sectionless document has no format
+## 5. A sectionless document has no format --- ACCEPTED
 
-*Raised in phase 2. Specification sections 4.2 and 7.1.*
+*Raised in phase 2.*
 
 A document with no sections, such as a summary alone, parses with
 `format=None` rather than raising, because it carries the same meaning in
@@ -142,12 +140,12 @@ both formats and so involves no arbitrary choice. A format becomes necessary
 only when such a document must be rendered, which is where the requirement
 for an explicit format applies.
 
-Recorded as a deliberate reading of section 4.2 rather than an omission.
+Recorded as a deliberate choice rather than an omission.
 
 
 ## 6. An empty section is not written in Google format --- ACCEPTED
 
-*Raised in phase 3; accepted as-is after phase 8. Specification section 46.*
+*Raised in phase 3; accepted as-is after phase 8.*
 
 A Google section header is only a header when an indented body follows it, so
 a section with no items and no text has no Google spelling. The renderer
@@ -163,8 +161,7 @@ document that is otherwise perfectly convertible.
 
 ## 7. An item described without a type --- RESOLVED
 
-*Raised in phase 3; resolved after phase 8. Specification sections 46 and
-47.*
+*Raised in phase 3; resolved after phase 8.*
 
 Google style permits a return value, a raised error, or a warning to be
 described without naming its type. The NumPy standard does not: its
@@ -205,7 +202,7 @@ written to a docstring. Full identity would additionally require reading
 named `object` deliberately. Converting therefore adds the type NumPy
 requires and keeps it: a document that has made the round trip says
 `object: The computed result.` in Google style. Nothing is lost, and
-section 47 only ever required round-tripping within a format.
+round-tripping was only ever required within a format.
 
 Writing the tests for this uncovered an unrelated defect: a reStructuredText
 role used as a type, such as ``:class:`numpy.ndarray```, was split at its
@@ -214,12 +211,12 @@ colon is no longer read as separating a name from a type.
 
 ## 8. Objects that cannot be weakly referenced --- RESOLVED
 
-*Raised in phase 4; resolved after phase 8. Specification section 9.*
+*Raised in phase 4; resolved after phase 8.*
 
 The cache was keyed by the documented object and held its keys weakly, so an
 object that could not be the target of a weak reference, and wrapped nothing
 that could, was not cached at all. A write-only property was the one real
-case; the three descriptor types the specification requires were handled by
+case; the three descriptor types that had to be handled were managed by
 keying on the function each wraps.
 
 Resolved by keying the cache on the documentation text instead of on the
@@ -229,10 +226,9 @@ it describes: it cannot keep one alive, and there is no object it cannot
 handle, including a write-only property and an instance whose class defines
 `__slots__` without `__weakref__`.
 
-Specification section 9 asked that caching not keep objects alive and that
-the cache not modify them. Both hold more simply than before, and the
-weak-reference machinery --- the key resolution, the descriptor unwrapping,
-the reference test --- is gone.
+Caching must not keep objects alive or modify them. Both hold more simply
+than before, and the weak-reference machinery --- the key resolution, the
+descriptor unwrapping, the reference test --- is gone.
 
 What the new key costs is that documentation strings cannot themselves be
 weakly referenced, so entries are not reclaimed when their objects die. The
@@ -258,13 +254,10 @@ fingerprint comparison is gone, because the key is the fingerprint.
 
 ## 10. `dropparams` and `dropreturns` named opposite sides --- RESOLVED
 
-*Sections 17, 24 and 42 still use the original names; the note at the head of
-the specification records that the implementation does not.*
-
 *Raised in phase 6; resolved after phase 8.*
 
-Section 17 made `dropparams` exclude a *target* parameter, while section 24
-made `dropreturns` exclude a *source* return item. The two are opposite
+The original design made `dropparams` exclude a *target* parameter, while
+`dropreturns` excluded a *source* return item. The two are opposite
 directions, and neither is arbitrary: each names the only side that is both
 available and useful.
 
@@ -303,7 +296,7 @@ mapping to rename; a mapped name is now a candidate in its own right.
 
 ## 11. An integer bound to a name-identified section --- RESOLVED
 
-*Raised in phase 6; resolved after phase 8. Specification section 16.*
+*Raised in phase 6; resolved after phase 8.*
 
 A source may be bound to one item with a `(source, key)` pair. In a section
 whose items are identified by name the key must name one; a position
@@ -334,22 +327,22 @@ position and a label identify an item.
 *Raised in phase 7; resolved in phase 8.*
 
 The decorator's `format` argument says what the decorated docstring is
-*written in*, per specification section 4.1, and rendering originally used
-that same format, so a document could not be asked to convert.
+*written in*, and rendering originally used that same format, so a document
+could not be asked to convert.
 
 Resolved by adding a `render` argument that says what format the composed
 documentation is written in, defaulting to `format`, or to the detected
-format when `format` was not given. `format` therefore keeps its
-specification meaning, `render='numpy'` alone says how to write an object
+format when `format` was not given. `format` therefore keeps its original
+meaning, `render='numpy'` alone says how to write an object
 that has no docstring to detect a format from, and giving both converts a
 document from one format into the other.
 
 
-## 13. The format is part of the cache key --- RESOLVED IN THE SPECIFICATION
+## 13. The format is part of the cache key --- RESOLVED
 
-*Raised after phase 8. Specification section 8.1, since revised.*
+*Raised after phase 8.*
 
-Section 8.1 says that where cached information already exists,
+The original design held that where cached information already exists,
 `docinfo(foo, format='google')` returns it regardless of the format supplied,
 on the grounds that the document representation is format-independent.
 
@@ -367,35 +360,16 @@ notes :
 ```
 
 is a Parameters section with a `notes` parameter when read as NumPy, and a
-Notes section when read as Google. Under section 8.1 whichever format was
+Notes section when read as Google. Under that rule whichever format was
 asked for first answered every later request as well, so a single early call
 with the wrong format left the object permanently misdescribed --- even to a
 later call that named the format correctly.
 
-The cache is therefore keyed by `(format, documentation)` rather than by
-documentation alone, and `docinfo` under two formats asks two questions. A
+The cache is therefore keyed by `(format, custom, documentation)` rather than
+by documentation alone, and `docinfo` under two formats asks two questions. A
 composed document is recorded under both the format it was written in and the
 detecting request, since detecting the format of that text yields the same
 answer.
 
-Section 8.1 has been revised accordingly: the representation is
-format-independent only once the format is settled, which is what the
-original rule overlooked. The requirement that a recorded document answer a
-request naming any format has been dropped.
-
-
-# To do
-
-Work that is planned rather than deferred.
-
-## Sphinx documentation site --- DONE
-
-Built under `docs/` and published to GitHub Pages by `.github/workflows/
-docs.yml`. The API reference is generated from the package's own NumPy-style
-docstrings through `sphinx.ext.napoleon`, so the site is rendered from the
-kind of documentation the library reads. The build treats warnings as errors,
-and the test suite builds it as well, so a broken reference fails rather than
-producing a broken page.
-
-The repository's Pages source must be set to GitHub Actions before the first
-deployment.
+The representation is format-independent only once the format is settled,
+which is what the original rule overlooked.

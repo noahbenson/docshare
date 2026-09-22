@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """Tests for the inheritance engine.
 
-The worked examples of the specification, sections 49 to 56, appear here
-verbatim, alongside the invariants of section 61.
+The worked examples of the guide, and the library's core invariants, appear
+here verbatim.
 """
 
 import pytest
@@ -169,7 +169,7 @@ def four_returns():
     """
 
 
-# Section 49 and 60: the guiding example #####################################
+# the guiding example #########################################################
 
 
 def test_the_guiding_example():
@@ -223,7 +223,7 @@ def test_the_description_is_never_replaced():
     assert doc.description == ()
 
 
-# Section 61.1: explicit documentation wins ##################################
+# explicit documentation wins #################################################
 
 
 def test_target_documentation_overrides_inherited():
@@ -240,7 +240,7 @@ def test_target_documentation_overrides_inherited():
     assert descriptions(doc) == ['My own x.', 'y from alpha.']
 
 
-# Section 52 and 61.2: right-most precedence #################################
+# right-most precedence #######################################################
 
 
 def test_the_rightmost_source_wins():
@@ -267,7 +267,7 @@ def test_a_single_source_need_not_be_a_sequence():
     assert descriptions(doc) == ['x from alpha.', 'y from alpha.']
 
 
-# Section 53 and 61.3: forced source selection ###############################
+# forced source selection #####################################################
 
 
 def test_a_bound_source_overrides_precedence():
@@ -317,7 +317,7 @@ def test_a_boolean_is_not_an_item_key():
     assert specs[0].key is None
 
 
-# Section 50 and 61.4: dropping ##############################################
+# dropping ####################################################################
 
 
 def test_dropping_excludes_a_parameter_from_inheritance():
@@ -348,7 +348,7 @@ def test_dropping_does_not_remove_the_targets_own_documentation():
     assert descriptions(doc) == ['My own x.', 'y from alpha.']
 
 
-# Section 51: parameter mapping ##############################################
+# parameter mapping ###########################################################
 
 
 def test_a_mapped_parameter_inherits_under_its_own_name():
@@ -382,7 +382,7 @@ def test_a_source_parameter_the_target_lacks_is_not_inherited():
     assert names(doc) == [('x',)]
 
 
-# Section 21 and 61.5: grouped declarations ##################################
+# grouped declarations ########################################################
 
 
 def test_a_group_is_inherited_unchanged():
@@ -473,7 +473,7 @@ def test_dropping_a_whole_group_is_allowed():
     assert names(doc) == [('z',)]
 
 
-# Section 38: renaming a group ###############################################
+# renaming a group ############################################################
 
 
 def test_renaming_that_keeps_a_group_whole_is_allowed():
@@ -524,7 +524,7 @@ def test_the_split_group_error_shows_the_renaming():
     assert 'would become a, y' in str(info.value)
 
 
-# Section 36: empty targets ##################################################
+# empty targets ###############################################################
 
 
 def test_an_undocumented_target_is_composed_from_its_sources():
@@ -544,7 +544,7 @@ def test_an_undocumented_target_gains_a_section():
     assert doc.section('parameters') is not None
 
 
-# Section 37: ordering #######################################################
+# ordering ####################################################################
 
 
 def test_items_follow_the_signature_order():
@@ -876,7 +876,7 @@ def test_the_rightmost_source_supplies_a_prose_section():
     assert doc.section('notes').text == ('From second.',)
 
 
-# Section 56: opaque sections ################################################
+# opaque sections #############################################################
 
 
 def test_an_opaque_section_is_inherited_when_asked_for():
@@ -924,7 +924,7 @@ def test_an_absent_opaque_section_is_simply_not_inherited():
     assert doc.section('Afferents') is None
 
 
-# Section 61.8: unknown sections are not implicitly inherited ################
+# unknown sections are not implicitly inherited ###############################
 
 
 def test_an_opaque_section_is_not_inherited_by_an_ordinary_operation():
@@ -1009,7 +1009,7 @@ def test_a_source_with_no_such_section_contributes_nothing():
     assert doc.section('returns') is None
 
 
-# Section 35: composition captures the source at the time it runs ############
+# composition captures the source at the time it runs #########################
 
 
 def test_composition_uses_the_sources_composed_documentation():
